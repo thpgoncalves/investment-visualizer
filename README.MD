@@ -1,3 +1,6 @@
+.venv\Scripts\Activate.ps1
+
+
 investment-visualizer/
   README.md
   pyproject.toml            # ou requirements.txt

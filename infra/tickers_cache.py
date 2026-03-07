@@ -1,9 +1,9 @@
 from datetime import date, datetime, timedelta
+from pathlib import Path
 import logging
 
 import yfinance as yf
-
-from pathlib import Path
+import pandas as pd
 
 from pyspark.sql import functions as F
 from pyspark.sql.window import Window
@@ -29,25 +29,25 @@ def get_tickers_price(df: DataFrame, lookback_days: int = 7) -> DataFrame:
     
     spark = df.sparkSession
 
-    cutoff = date.today()
+    cutoff = date.today() - timedelta(days=1)
     start = cutoff - timedelta(days=lookback_days)
-    end = cutoff + timedelta(days=1)
     
     df_filtrado = (df
-                   .filter(F.col('tipo') == F.lit("stock")) # confirmar o pq do li
+                   .filter(F.col('tipo') == F.lit("stock"))
                    .select(F.col('nome').alias('ticker'))
                    .filter(F.col('ticker').isNotNull() & (F.col('ticker') != ''))
                    .distinct()
     )
 
-    tickers_list = [r['ticker'] for r in df_filtrado.collect()]
-    if not tickers_list:
-        schema = T.StructType([
+    schema = T.StructType([
             T.StructField("ticker", T.StringType(), False),
             T.StructField("data_preco", T.DateType(), False),
             T.StructField("close", T.DoubleType(), True),
             T.StructField("extracted_at", T.TimestampType(), False)
         ])
+
+    tickers_list = [r['ticker'] for r in df_filtrado.collect()]
+    if not tickers_list:
         return spark.createDataFrame([], schema)
     
     def _to_yahoo_ticker(ticker:str) -> str:
@@ -56,13 +56,13 @@ def get_tickers_price(df: DataFrame, lookback_days: int = 7) -> DataFrame:
         
         return f"{ticker}.SA"
     
-    yahoo_map = {t: _to_yahoo_ticker(t) for t in tickers_list}
-    yahoo_ticker_list = list(yahoo_map.values())
+    yahoo_map = {_to_yahoo_ticker(t): t for t in tickers_list}
+    yahoo_ticker_list = list(yahoo_map.keys())
 
     data = yf.download(
         tickers=yahoo_ticker_list,
         start=start,
-        end=end,
+        end=cutoff,
         interval="1d",
         auto_adjust=True,
         threads=False
@@ -73,43 +73,77 @@ def get_tickers_price(df: DataFrame, lookback_days: int = 7) -> DataFrame:
     # Função interna: extrai a série de "Close" para um ticker, lidando com retorno 1-ticker vs multi-ticker
     def _close_series_for_ticker(yahoo_t: str):
         """
-        Retorna um pandas.Series com index datetime (dias) e valores de Close, ou Series vazia.
+        Retorna um pandas.DataFrame com colunas:
+        date | ticker | close
         """
         try:
             if len(yahoo_ticker_list) == 1:
                 close_s = data['Close']
             else:
                 close_s = data[yahoo_t]["Close"]
-            return close_s
-        except:
+
+            
+            df_close = close_s.reset_index()
+            df_close.columns = ["data_preco", "close"]
+            df_close["ticker"] = yahoo_t
+            df_close["extracted_at"] = extracted_at
+
+            return df_close[["data_preco", "ticker", "close", "extracted_at"]]
+        except Exception:
             return None
         
-    rows = []
-    for ticker, yahoo_ticker in yahoo_map.items():
-        close_s = _close_series_for_ticker(yahoo_ticker)
+    dfs = []
+    for yahoo_t in yahoo_ticker_list:
+        df_ticker = _close_series_for_ticker(yahoo_t)
 
-        if close_s is None:
-            rows.append((ticker, cutoff, None, extracted_at))
-            continue
+        if df_ticker is not None:
+            dfs.append(df_ticker)
 
-        close_s = close_s.dropna()
+    if not dfs:
+        return spark.createDataFrame([], schema)
 
-        if close_s.empty:
-            rows.append((ticker, cutoff, None, extracted_at))
-            continue
-        
-        close = float(close_s.iloc[-1])
-        data_preco = close_s.index[-1].date()
+    df_concat = pd.concat(dfs, ignore_index=True)
 
-        rows.append((ticker, data_preco, close, extracted_at))
+    # voltando os tickers ao nome original
+    df_concat["ticker"] = df_concat["ticker"].map(yahoo_map)
 
-    schema = T.StructType([
-            T.StructField("ticker", T.StringType(), False),
-            T.StructField("data_preco", T.DateType(), False),
-            T.StructField("close", T.DoubleType(), True),
-            T.StructField("extracted_at", T.TimestampType(), False)
-        ])
-    return spark.createDataFrame(rows, schema) 
+    def build_latest_prices_spark_df(df, spark, schema) -> DataFrame:
+        df = df.copy()
+
+        # garante tipos compatíveis no pandas antes da conversão
+        df["data_preco"] = pd.to_datetime(df["data_preco"], errors="coerce").dt.date
+        df["extracted_at"] = pd.to_datetime(df["extracted_at"], errors="coerce")
+        df["ticker"] = df["ticker"].astype("string")
+        df["close"] = pd.to_numeric(df["close"], errors="coerce")
+
+        spark_df = spark.createDataFrame(df, schema)
+        spark_df.createOrReplaceTempView("ticker_prices_raw")
+
+        df_final = spark.sql("""
+            WITH 
+                ranked as (
+                    SELECT 
+                        ticker,
+                        data_preco,
+                        close,
+                        extracted_at,
+                        ROW_NUMBER() OVER(PARTITION BY ticker ORDER BY data_preco DESC) AS rn
+                    FROM ticker_prices_raw
+                    WHERE close IS NOT NULL AND close > 0
+                )
+            SELECT 
+                ticker,
+                data_preco,
+                close,
+                extracted_at 
+            FROM ranked WHERE rn = 1
+        """)
+
+        return df_final
+    
+    df_final = build_latest_prices_spark_df(df_concat, spark, schema)
+
+    return df_final
 
 def update_tickers_cache(df_prices: DataFrame, cache_dir: str | None = None) -> DataFrame:
     """
