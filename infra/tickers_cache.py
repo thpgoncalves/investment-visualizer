@@ -36,16 +36,16 @@ def get_tickers_price(df: DataFrame, lookback_days: int = 7) -> DataFrame:
     df_filtrado = (df
                    .filter(F.col('tipo') == F.lit("stock")) # confirmar o pq do li
                    .select(F.col('nome').alias('ticker'))
-                   .filter(F.col('ticker').isNotNull() & F.col('ticker') != '' )
+                   .filter(F.col('ticker').isNotNull() & (F.col('ticker') != ''))
                    .distinct()
     )
 
-    tickers_list = [r['tickers'] for r in df_filtrado.collect()]
+    tickers_list = [r['ticker'] for r in df_filtrado.collect()]
     if not tickers_list:
         schema = T.StructType([
             T.StructField("ticker", T.StringType(), False),
             T.StructField("data_preco", T.DateType(), False),
-            T.StructField("close", T.DoubleType(), False),
+            T.StructField("close", T.DoubleType(), True),
             T.StructField("extracted_at", T.TimestampType(), False)
         ])
         return spark.createDataFrame([], schema)
@@ -65,7 +65,7 @@ def get_tickers_price(df: DataFrame, lookback_days: int = 7) -> DataFrame:
         end=end,
         interval="1d",
         auto_adjust=True,
-        threads=True
+        threads=False
     )
 
     extracted_at = datetime.now()
@@ -106,7 +106,7 @@ def get_tickers_price(df: DataFrame, lookback_days: int = 7) -> DataFrame:
     schema = T.StructType([
             T.StructField("ticker", T.StringType(), False),
             T.StructField("data_preco", T.DateType(), False),
-            T.StructField("close", T.DoubleType(), False),
+            T.StructField("close", T.DoubleType(), True),
             T.StructField("extracted_at", T.TimestampType(), False)
         ])
     return spark.createDataFrame(rows, schema) 
