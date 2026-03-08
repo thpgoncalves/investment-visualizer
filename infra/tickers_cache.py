@@ -163,7 +163,7 @@ def get_tickers_price(df: DataFrame, lookback_days: int = 7) -> DataFrame:
 
 def handler_tickers_cache(df_prices: DataFrame, cache_dir: str | None = None) -> DataFrame:
     """
-        Atualiza o cache parquet de preços de tickers. 
+        Atualiza o cache parquet e csv de preços de tickers. 
         Se já existir cache, faz union com os dados novos e deduplica por `ticker` e `data_preco`, 
         mantendo o registro com `extracted_at` mais recente. 
         Ao final, grava o resultado em uma pasta temporária, substitui a pasta oficial e remove a temporária.
@@ -179,8 +179,9 @@ def handler_tickers_cache(df_prices: DataFrame, cache_dir: str | None = None) ->
 
     temp_dir = final_dir.parent / f"{final_dir.name}_temp"
 
-    final_file = final_dir / "tickers_cache.parquet"
-    temp_file = temp_dir / "tickers_cache.parquet"
+    final_parquet_file = final_dir / "tickers_cache.parquet"
+    temp_parquet_file = temp_dir / "tickers_cache.parquet"
+    temp_csv_file = temp_dir / "tickers_cache.csv"
 
     final_dir.parent.mkdir(parents=True, exist_ok=True)
 
@@ -192,9 +193,9 @@ def handler_tickers_cache(df_prices: DataFrame, cache_dir: str | None = None) ->
     df_new["extracted_at"] = pd.to_datetime(df_new["extracted_at"], errors="coerce")
     df_new["close"] = pd.to_numeric(df_new["close"], errors="coerce")
 
-    if final_file.exists():
+    if final_parquet_file.exists():
         logger.info("Existing cache found. Merging with new batch.")
-        df_cache = pd.read_parquet(final_file)
+        df_cache = pd.read_parquet(final_parquet_file)
 
         df_cache["data_preco"] = pd.to_datetime(df_cache["data_preco"], errors="coerce").dt.date
         df_cache["extracted_at"] = pd.to_datetime(df_cache["extracted_at"], errors="coerce")
@@ -219,8 +220,9 @@ def handler_tickers_cache(df_prices: DataFrame, cache_dir: str | None = None) ->
 
     temp_dir.mkdir(parents=True, exist_ok=True)
     
-    logger.info("Writing temporary cache to %s", temp_file)
-    df_dedup.to_parquet(temp_file, index=False)
+    logger.info("Writing temporary cache to %s", temp_parquet_file)
+    df_dedup.to_parquet(temp_parquet_file, index=False)
+    df_dedup.to_csv(temp_csv_file, index=False)
 
     if final_dir.exists():
         shutil.rmtree(final_dir)
