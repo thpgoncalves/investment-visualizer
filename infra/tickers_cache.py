@@ -13,22 +13,18 @@ from pyspark.sql.dataframe import DataFrame
 
 logger = logging.getLogger(__name__)
 
-###############################################################
-### trocar docstring de todas as funcoes e revisar funcao 2 ###
-###############################################################
-
 def get_tickers_price(df: DataFrame, lookback_days: int = 7) -> DataFrame:
     """
-    Busca no Yahoo Finance o preço de fechamento mais recente disponível para cada ticker de ação presente no DataFrame de entrada. 
-    A função considera apenas registros com `tipo = "stock"`, extrai os tickers distintos da coluna `nome` e adiciona o sufixo `.SA` 
-    quando necessário para consulta no Yahoo.
+        Busca no Yahoo Finance o preço de fechamento mais recente disponível para cada ticker de ação presente no DataFrame de entrada. 
+        A função considera apenas registros com `tipo = "stock"`, extrai os tickers distintos da coluna `nome` e adiciona o sufixo `.SA` 
+        quando necessário para consulta no Yahoo.
 
-    A busca é feita no intervalo entre a data atual menos `lookback_days` e a data atual. 
-    Para cada ticker, é selecionado o fechamento mais recente com valor válido (`close` não nulo e maior que zero), 
-    preservando no retorno o ticker original do DataFrame de entrada, sem o sufixo usado internamente na consulta.
+        A busca é feita no intervalo entre a data atual menos `lookback_days` e a data atual. 
+        Para cada ticker, é selecionado o fechamento mais recente com valor válido (`close` não nulo e maior que zero), 
+        preservando no retorno o ticker original do DataFrame de entrada, sem o sufixo usado internamente na consulta.
 
-    Retorna um DataFrame Spark com as colunas `data_preco`, `ticker`, `close`, `extracted_at` e `data_apuracao`. 
-    Assume que a quantidade de tickers distintos é pequena o suficiente para ser coletada no driver.
+        Retorna um DataFrame Spark com as colunas `data_preco`, `ticker`, `close`, `extracted_at` e `data_apuracao`. 
+        Assume que a quantidade de tickers distintos é pequena o suficiente para ser coletada no driver.
     """
     
     spark = df.sparkSession
@@ -57,8 +53,8 @@ def get_tickers_price(df: DataFrame, lookback_days: int = 7) -> DataFrame:
     
     def _to_yahoo_ticker(ticker:str) -> str:
         """
-        Converte o ticker para o formato esperado pelo Yahoo Finance. 
-        Caso o valor já possua um sufixo, ele é mantido; caso contrário, é adicionado `.SA`, assumindo negociação na B3.
+            Converte o ticker para o formato esperado pelo Yahoo Finance. 
+            Caso o valor já possua um sufixo, ele é mantido; caso contrário, é adicionado `.SA`, assumindo negociação na B3.
         """
         if "." in ticker:
             return ticker
@@ -82,11 +78,11 @@ def get_tickers_price(df: DataFrame, lookback_days: int = 7) -> DataFrame:
     # Função interna: extrai a série de "Close" para um ticker, lidando com retorno 1-ticker vs multi-ticker
     def _close_series_for_ticker(yahoo_t: str):
         """
-        Extrai a série de fechamento (`Close`) de um ticker a partir do retorno do Yahoo Finance, 
-        tratando tanto cenários com um único ticker quanto com múltiplos tickers. 
-        Organiza o resultado em um DataFrame pandas com as colunas `data_preco`, `ticker`, `close` e `extracted_at`.
+            Extrai a série de fechamento (`Close`) de um ticker a partir do retorno do Yahoo Finance, 
+            tratando tanto cenários com um único ticker quanto com múltiplos tickers. 
+            Organiza o resultado em um DataFrame pandas com as colunas `data_preco`, `ticker`, `close` e `extracted_at`.
 
-        Em caso de erro no processamento do ticker, registra a mensagem e retorna `None`.
+            Em caso de erro no processamento do ticker, registra a mensagem e retorna `None`.
         """
         try:
             if isinstance(data.columns, pd.MultiIndex):
@@ -121,11 +117,11 @@ def get_tickers_price(df: DataFrame, lookback_days: int = 7) -> DataFrame:
 
     def build_latest_prices_spark_df(df, spark, schema) -> DataFrame:
         """
-        Normaliza os tipos do DataFrame pandas recebido e o converte para um DataFrame Spark com o schema informado. 
-        Em seguida, seleciona para cada ticker o preço de fechamento mais recente com valor válido, 
-        considerando apenas registros com `close` não nulo e maior que zero.
+            Normaliza os tipos do DataFrame pandas recebido e o converte para um DataFrame Spark com o schema informado. 
+            Em seguida, seleciona para cada ticker o preço de fechamento mais recente com valor válido, 
+            considerando apenas registros com `close` não nulo e maior que zero.
 
-        Retorna um DataFrame Spark final com `data_preco`, `ticker`, `close`, `extracted_at` e `data_apuracao`.
+            Retorna um DataFrame Spark final com `data_preco`, `ticker`, `close`, `extracted_at` e `data_apuracao`.
         """
         df = df.copy()
 
@@ -165,7 +161,7 @@ def get_tickers_price(df: DataFrame, lookback_days: int = 7) -> DataFrame:
 
     return df_final
 
-def update_tickers_cache(df_prices: DataFrame, cache_dir: str | None = None) -> DataFrame:
+def handler_tickers_cache(df_prices: DataFrame, cache_dir: str | None = None) -> DataFrame:
     """
         Atualiza o cache parquet de preços de tickers. 
         Se já existir cache, faz union com os dados novos e deduplica por `ticker` e `data_preco`, 
@@ -234,3 +230,43 @@ def update_tickers_cache(df_prices: DataFrame, cache_dir: str | None = None) -> 
     logger.info("Ticker cache updated successfully at %s", final_dir)
 
     return spark.createDataFrame(df_dedup)
+
+def handler_partitions(df: DataFrame, location: str) -> DataFrame:
+    """
+        Salva um snapshot completo do DataFrame em CSV dentro da camada informada em `location`,
+        como `silver` ou `gold`. A partição de destino é definida a partir da maior data presente
+        na coluna `data_apuracao`, no formato `YYYY-MM`.
+
+        Lógica de reprocessamento:
+            - Se a pasta da partição já existir, ela é removida antes da nova gravação, garantindo que
+                o mês contenha sempre a versão mais atual do snapshot. 
+            - Se não existir, a pasta é criada normalmente e o arquivo é salvo dentro dela.
+
+        Retorna uma mensagem com o caminho final do arquivo gerado.
+    """
+    row = (df
+           .agg(
+               F.year(F.max("data_apuracao")).alias("ano"),
+               F.month(F.max("data_apuracao")).alias("mes")
+            )
+           .first()
+    )
+    ano = row["ano"]
+    mes = row["mes"]
+
+    project_root = Path(__file__).resolve().parents[1]
+    partition_ref = f"{ano}-{mes:02d}"
+    location_dir = project_root / "data" / location / "snapshots" / partition_ref
+    final_file = location_dir / f"{partition_ref}_snapshot.csv"
+
+    df_final = df.toPandas().copy()
+
+    if location_dir.exists():
+        logger.info("Existing partition found. Deleting before saving new file.")
+        shutil.rmtree(location_dir)
+
+    location_dir.mkdir(parents=True, exist_ok=True)
+
+    df_final.to_csv(final_file, index=False)
+
+    return f"Success file saved at: {final_file}"
