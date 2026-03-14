@@ -135,24 +135,23 @@ def get_tickers_price(df: DataFrame, lookback_days: int = 7) -> DataFrame:
         spark_df.createOrReplaceTempView("ticker_prices_raw")
 
         df_final = spark.sql("""
-            WITH 
-                ranked as (
-                    SELECT 
-                        data_preco,
-                        ticker,
-                        ROUND(close, 2) as close,
-                        extracted_at,
-                        ROW_NUMBER() OVER(PARTITION BY ticker ORDER BY data_preco DESC) AS rn
-                    FROM ticker_prices_raw
-                    WHERE close IS NOT NULL AND close > 0
-                )
             SELECT 
                 data_preco,
                 ticker,
                 close,
                 extracted_at,
                 CAST(extracted_at as date) as data_apuracao 
-            FROM ranked WHERE rn = 1
+            FROM (
+                SELECT 
+                    data_preco,
+                    ticker,
+                    ROUND(close, 2) as close,
+                    extracted_at,
+                    ROW_NUMBER() OVER(PARTITION BY ticker ORDER BY data_preco DESC) AS rn
+                FROM ticker_prices_raw
+                WHERE close IS NOT NULL AND close > 0
+            )
+            WHERE rn = 1
         """)
 
         return df_final
