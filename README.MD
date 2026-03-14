@@ -1,6 +1,7 @@
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 .venv\Scripts\Activate.ps1
 
+streamlit run app/streamlit_app.py
 
 investment-visualizer/
   README.md
@@ -41,8 +42,8 @@ investment-visualizer/
     silver/
       positions/            # datasets intermediários (opcional)
       prices_cache/
-    snapshots/
-      yyyy-mm/              # seus snapshots materializados por mês
+      snapshots/
+        yyyy-mm/              # seus snapshots materializados por mês
     gold/
       metrics/              # tabelas prontas para o app
 
