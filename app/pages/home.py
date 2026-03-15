@@ -124,13 +124,13 @@ portfolio_snapshot = None
 allocation_by_type = None
 allocation_by_currency = None
 
-absolute_history = None
-absolute_comparison = None
+absolute_history = None # grafico de linhas
+absolute_comparison = None # grafico de barra
 
-percentage_history = None
-percentage_comparison = None
+percentage_history = None # grafico de linhas
+percentage_comparison = None # grafico de barra
 
-total_value_label = "R$ XX.XXX,XX"
+total_value_label = "R$ XX.XXX,XX" #subistituir por um soma ou algo do tipo, criar funcao para somar e pegar total e se possivel tbm pegar ytd
 
 
 # -------------------------------------------------------------------
@@ -149,17 +149,17 @@ st.markdown('<div class="page-title">Janela 1 (Principal)</div>', unsafe_allow_h
 #
 # Os números das columns são proporcionais, não são pixels.
 # -------------------------------------------------------------------
-left_col, center_col, right_col = st.columns([1.1, 1.0, 1.8], gap="large")
+left_col, center_col, right_col = st.columns([1.5, 1.0, 1.8], gap="large")
 
 with left_col:
     with st.container(border=True):
         st.markdown("**Instituições**")
         st.caption("Atalhos de navegação para páginas reais placeholder")
 
-        render_navigation_button("XP - R$ XX.XXX,XX", "pages/page_xp.py")
-        render_navigation_button("Nubank - R$ XX.XXX,XX", "pages/page_nubank.py")
-        render_navigation_button("Clear - R$ XX.XXX,XX", "pages/page_clear.py")
-        render_navigation_button("Binance - R$ XX.XXX,XX", "pages/page_binance.py")
+        render_navigation_button("XP - R$ XX.XXX,XX", "pages/page_xp.py") # adicionar funcao q traz o total pra trazer nesse formato ai de string formatada
+        render_navigation_button("Nubank - R$ XX.XXX,XX", "pages/page_nubank.py")  # adicionar funcao q traz o total pra trazer nesse formato ai de string formatada
+        render_navigation_button("Clear - R$ XX.XXX,XX", "pages/page_clear.py")  # adicionar funcao q traz o total pra trazer nesse formato ai de string formatada
+        render_navigation_button("Binance - R$ XX.XXX,XX", "pages/page_binance.py")  # adicionar funcao q traz o total pra trazer nesse formato ai de string formatada
 
 with center_col:
     with st.container(border=True, height=280):
@@ -173,8 +173,8 @@ with right_col:
             st.plotly_chart(
                 build_pie_chart(
                     title="Distribuição Investimento (Tipo)",
-                    labels=None if allocation_by_type is None else allocation_by_type["labels"],
-                    values=None if allocation_by_type is None else allocation_by_type["values"],
+                    labels=None if allocation_by_type is None else allocation_by_type["tipo"], # trocar nome das variaveis
+                    values=None if allocation_by_type is None else allocation_by_type["preco_atual"], # trocar nome das variaveis
                 ),
                 use_container_width=True,
             )
@@ -184,8 +184,8 @@ with right_col:
             st.plotly_chart(
                 build_pie_chart(
                     title="Distribuição Investimentos (Moeda)",
-                    labels=None if allocation_by_currency is None else allocation_by_currency["labels"],
-                    values=None if allocation_by_currency is None else allocation_by_currency["values"],
+                    labels=None if allocation_by_currency is None else allocation_by_currency["exposicao"],  # trocar nome das variaveis
+                    values=None if allocation_by_currency is None else allocation_by_currency["preco_atual"], # trocar nome das variaveis
                 ),
                 use_container_width=True,
             )
@@ -210,19 +210,21 @@ with abs_left_col:
         st.plotly_chart(
             build_line_chart(
                 title="Evolução Mensal",
-                x_values=None if absolute_history is None else absolute_history["x_values"],
-                series=None if absolute_history is None else absolute_history["series"],
+                x_col=None if absolute_history is None else absolute_history["mes"], # trocar nome das variaveis
+                y_col=None if absolute_history is None else absolute_history["preco_atual"], # trocar nome das variaveis
+                series_col=None if absolute_history is None else absolute_history["instituicao_fin"], # trocar nome das variaveis
                 y_axis_title="R$",
             ),
             use_container_width=True,
         )
 
+# avaliar como realmente ficaria essa parte aqui pra calculo de ano e ytd
 with abs_right_col:
     with st.container(border=True):
         st.plotly_chart(
             build_grouped_bar_chart(
                 title="2024 x 2025 x YTD",
-                categories=None if absolute_comparison is None else absolute_comparison["categories"],
+                categories=None if absolute_comparison is None else absolute_comparison["categories"], 
                 series=None if absolute_comparison is None else absolute_comparison["series"],
                 y_axis_title="R$",
             ),
@@ -248,13 +250,15 @@ with pct_left_col:
         st.plotly_chart(
             build_line_chart(
                 title="Variação Mensal (%)",
-                x_values=None if percentage_history is None else percentage_history["x_values"],
-                series=None if percentage_history is None else percentage_history["series"],
+                x_col=None if percentage_history is None else percentage_history["mes"], # trocar nome das variaveis
+                y_col=None if percentage_history is None else percentage_history["preco_atual"], # trocar nome das variaveis
+                series_col=None if percentage_history is None else percentage_history["instituicao_fin"], # trocar nome das variaveis
                 y_axis_title="%",
             ),
             use_container_width=True,
         )
 
+# avaliar como realmente ficaria essa parte aqui pra calculo de ano e ytd
 with pct_right_col:
     with st.container(border=True):
         st.plotly_chart(
@@ -266,21 +270,3 @@ with pct_right_col:
             ),
             use_container_width=True,
         )
-
-
-# -------------------------------------------------------------------
-# Expander opcional só para te lembrar onde os dados entram depois.
-# Você pode remover isso sem problema.
-# -------------------------------------------------------------------
-with st.expander("Onde os dados reais vão entrar depois?", expanded=False):
-    st.write(
-        "A variável `portfolio_snapshot` está vazia de propósito. "
-        "Depois você pode preencher isso com leitura de arquivo."
-    )
-    st.write(
-        "Exemplo de próximos passos:"
-        "\n- ler parquet/csv/json"
-        "\n- transformar em estruturas simples"
-        "\n- passar essas estruturas para as funções dos gráficos"
-    )
-    st.write(portfolio_snapshot)

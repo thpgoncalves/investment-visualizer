@@ -1,5 +1,13 @@
 import streamlit as st
+from app.config.pages import PAGES
 
+
+
+PAGE_CONFIG = PAGES["page_1"]
+
+PAGE_TITLE = PAGE_CONFIG["title"]
+PAGE_SCOPE_TYPE = PAGE_CONFIG["scope_type"]
+PAGE_SCOPE_VALUE = PAGE_CONFIG["scope_value"]
 
 # -------------------------------------------------------------------
 # Esta é uma página placeholder real.
