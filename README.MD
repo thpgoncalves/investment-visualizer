@@ -1,10 +1,11 @@
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-.venv\Scripts\Activate.ps1
 
+Remove-Item -Recurse -Force .venv
+
+py -3.11 -m venv .venv
+.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 python -m pip install -e .
-python -m pip install ipykernel pandas plotly jupyter
-
 python -m ipykernel install --user --name investment-visualizer --display-name "Python (investment-visualizer)"
 
 

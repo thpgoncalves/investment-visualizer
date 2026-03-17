@@ -1,11 +1,7 @@
 timestamp,data_apuracao,ano,mes_num,mes,instituicao_fin,resumo,tipo,nome,qtd,preco_medio,preco_atual,aporte,exposicao
-2026-02-24 10:21:10,2026-03-08,2026,3,Mar,XP,"Stock | BERK34 | 5 | 120,02 |",stock,BERK34,5.0,120.02,132.45,0.0,internacional
-2026-02-24 10:21:10,2026-03-08,2026,3,Mar,XP,"Stock | BERK34 | 5 | 120,02 |",stock,BERK34,5.0,120.02,130.05,0.0,internacional
-2026-02-24 10:21:10,2026-03-08,2026,3,Mar,XP,"Renda Fixa | Tesouro | 1 | 24.000,00 | 30.000,00",renda fixa,tesouro,1.0,24000.0,30000.0,0.0,nacional
-2026-02-24 10:22:11,2026-03-08,2026,3,Mar,CLEAR,"Stock | IVVB11 | 15 | 300,05 | ",stock,IVVB11,15.0,300.05,399.12,0.0,internacional
-2026-02-24 10:22:11,2026-03-08,2026,3,Mar,CLEAR,"Stock | IVVB11 | 15 | 300,05 | ",stock,IVVB11,15.0,300.05,397.87,0.0,internacional
-2026-02-24 10:22:11,2026-03-08,2026,3,Mar,CLEAR,"Stock  | BOVA11 | 10 | 125,2 | ",stock,BOVA11,10.0,125.2,177.35,0.0,nacional
-2026-02-24 10:22:11,2026-03-08,2026,3,Mar,CLEAR,"Stock  | BOVA11 | 10 | 125,2 | ",stock,BOVA11,10.0,125.2,175.89,0.0,nacional
-2026-02-24 10:22:11,2026-03-08,2026,3,Mar,CLEAR,"Stock | BERK34 | 10 | 132,29 | ",stock,BERK34,10.0,132.29,132.45,0.0,internacional
-2026-02-24 10:22:11,2026-03-08,2026,3,Mar,CLEAR,"Stock | BERK34 | 10 | 132,29 | ",stock,BERK34,10.0,132.29,130.05,0.0,internacional
-2026-02-24 10:23:26,2026-03-08,2026,3,Mar,NUBANK,Renda Fixa | Reserva de Emergencia | 1 | 7000 | 7600,renda fixa,reserva de emergencia,1.0,7000.0,7600.0,0.0,nacional
+2026-02-24 10:21:10,2026-03-14,2026,3,Mar,XP,"Stock | BERK34 | 5 | 120,02 |",stock,BERK34,5.0,120.02,130.33,0.0,internacional
+2026-02-24 10:21:10,2026-03-14,2026,3,Mar,XP,"Renda Fixa | Tesouro | 1 | 24.000,00 | 30.000,00",renda fixa,tesouro,1.0,24000.0,30000.0,0.0,nacional
+2026-02-24 10:22:11,2026-03-14,2026,3,Mar,CLEAR,"Stock | IVVB11 | 15 | 300,05 | ",stock,IVVB11,15.0,300.05,397.3,0.0,internacional
+2026-02-24 10:22:11,2026-03-14,2026,3,Mar,CLEAR,"Stock  | BOVA11 | 10 | 125,2 | ",stock,BOVA11,10.0,125.2,174.55,0.0,nacional
+2026-02-24 10:22:11,2026-03-14,2026,3,Mar,CLEAR,"Stock | BERK34 | 10 | 132,29 | ",stock,BERK34,10.0,132.29,130.33,0.0,internacional
+2026-02-24 10:23:26,2026-03-14,2026,3,Mar,NUBANK,Renda Fixa | Reserva de Emergencia | 1 | 7000 | 7600,renda fixa,reserva de emergencia,1.0,7000.0,7600.0,0.0,nacional
