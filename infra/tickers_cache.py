@@ -2,6 +2,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 import logging
 import shutil
+from typing import Literal
 
 import yfinance as yf
 import pandas as pd
@@ -232,19 +233,40 @@ def handler_tickers_cache(df_prices: DataFrame, cache_dir: str | None = None) ->
 
     return spark.createDataFrame(df_dedup)
 
-def handler_partitions(df: DataFrame, location: str) -> DataFrame:
+def handler_partitions(df: DataFrame, layer: Literal["silver", "gold"], file_name: str | None = None) -> str:
     """
-        Salva um snapshot completo do DataFrame em CSV dentro da camada informada em `location`,
-        como `silver` ou `gold`. A partição de destino é definida a partir da maior data presente
-        na coluna `data_apuracao`, no formato `YYYY-MM`.
+        Salva um snapshot completo do DataFrame em CSV na camada informada.
 
-        Lógica de reprocessamento:
-            - Se a pasta da partição já existir, ela é removida antes da nova gravação, garantindo que
-                o mês contenha sempre a versão mais atual do snapshot. 
-            - Se não existir, a pasta é criada normalmente e o arquivo é salvo dentro dela.
+        A partição de referência é definida a partir da maior data presente na coluna
+        `data_apuracao`, no formato `YYYYMM`.
 
-        Retorna uma mensagem com o caminho final do arquivo gerado.
+        Regras de gravação por camada:
+            - silver:
+                salva o arquivo em `data/silver/snapshots`.
+                Se a pasta de destino já existir, ela é removida completamente antes
+                da nova gravação, garantindo um reprocessamento completo da camada.
+            - gold:
+                salva o arquivo em `data/gold/<partition_ref>`.
+                Se o arquivo de destino já existir, apenas esse arquivo é removido antes
+                da nova gravação, preservando os demais arquivos da mesma partição.
+
+        Parâmetros:
+            df:
+                DataFrame Spark que será convertido e salvo em CSV.
+            layer:
+                Camada de destino. Aceita apenas `"silver"` ou `"gold"`.
+            file_name:
+                Nome lógico do arquivo para a camada gold. Obrigatório quando
+                `layer="gold"`.
+
+        Retorna:
+            Uma string com o caminho final do arquivo gerado.
+
+        Raises:
+            ValueError:
+                Quando `layer="gold"` e `file_name` não for informado.
     """
+    
     row = (df
            .agg(
                F.year(F.max("data_apuracao")).alias("ano"),
@@ -256,17 +278,34 @@ def handler_partitions(df: DataFrame, location: str) -> DataFrame:
     mes = row["mes"]
 
     project_root = Path(__file__).resolve().parents[1]
-    partition_ref = f"{ano}-{mes:02d}"
-    location_dir = project_root / "data" / location / "snapshots" / partition_ref
-    final_file = location_dir / f"{partition_ref}_snapshot.csv"
-
+    partition_ref = f"{ano}{mes:02d}"
     df_final = df.toPandas().copy()
 
-    if location_dir.exists():
-        logger.info("Existing partition found. Deleting before saving new file.")
-        shutil.rmtree(location_dir)
+    if layer == "silver":
+        location_dir = project_root / "data" / "silver" / "snapshots"
+        final_file = location_dir / f"{partition_ref}_silver_snapshot.csv"
+
+        if location_dir.exists():
+            logger.info("Existing silver snapshot directory found. Deleting before saving new file.")
+            shutil.rmtree(location_dir)
+
+        location_dir.mkdir(parents=True, exist_ok=True)
+        df_final.to_csv(final_file, index=False)
+
+        return f"Success file saved at: {final_file}"
+
+    if file_name is None:
+        raise ValueError("`file_name` is required when layer='gold'.")
+    
+    location_dir = project_root / "data" / "gold" / partition_ref
+    final_file = location_dir / f"{partition_ref}_gold_{file_name}_snapshot.csv"
 
     location_dir.mkdir(parents=True, exist_ok=True)
+
+
+    if final_file.exists():
+        logger.info("Existing gold snapshot file found. Deleting before saving new file.")
+        final_file.unlink()
 
     df_final.to_csv(final_file, index=False)
 
