@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import streamlit as st
-
+from app.config.pages import PAGES
 
 # -------------------------------------------------------------------
 # Este arquivo é o "entrypoint" da aplicação.
@@ -34,8 +34,12 @@ st.set_page_config(
 # - evita ficar espalhando strings soltas por todo o código.
 # -------------------------------------------------------------------
 APP_DIR = Path(__file__).resolve().parent
-PAGES_DIR = APP_DIR / "pages"
 
+page_home = PAGES['home']
+page_1    = PAGES['page_1']
+page_2    = PAGES['page_2']
+page_3    = PAGES['page_3']
+# page_4    = PAGES['page_4']
 
 # -------------------------------------------------------------------
 # Cada st.Page representa uma página real da aplicação.
@@ -47,35 +51,35 @@ PAGES_DIR = APP_DIR / "pages"
 # - default=True: define a página inicial.
 # -------------------------------------------------------------------
 home_page = st.Page(
-    str(PAGES_DIR / "home.py"),
+    str(APP_DIR / page_home['page_path']),
     title="Principal",
     icon=":material/home:",
     default=True,
 )
 
 xp_page = st.Page(
-    str(PAGES_DIR / "page_xp.py"),
+    str(APP_DIR / page_1['page_path']),
     title="XP",
     icon=":material/account_balance:",
 )
 
 nubank_page = st.Page(
-    str(PAGES_DIR / "page_nubank.py"),
+    str(APP_DIR / page_2['page_path']),
     title="Nubank",
     icon=":material/account_balance_wallet:",
 )
 
 clear_page = st.Page(
-    str(PAGES_DIR / "page_clear.py"),
+    str(APP_DIR / page_3['page_path']),
     title="Clear",
     icon=":material/show_chart:",
 )
 
-binance_page = st.Page(
-    str(PAGES_DIR / "page_binance.py"),
-    title="Binance",
-    icon=":material/currency_bitcoin:",
-)
+# binance_page = st.Page(
+#     str(APP_DIR / page_4['page_path']),
+#     title="Binance",
+#     icon=":material/currency_bitcoin:",
+# )
 
 
 # -------------------------------------------------------------------
@@ -96,7 +100,7 @@ current_page = st.navigation(
         xp_page,
         nubank_page,
         clear_page,
-        binance_page,
+        # binance_page,
     ],
     position="top",
     expanded=True,
