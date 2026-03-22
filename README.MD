@@ -13,21 +13,17 @@ streamlit run app/streamlit_app.py
 
 investment-visualizer/
   README.md
-  pyproject.toml            # ou requirements.txt
+  pyproject.toml            
   .gitignore
 
-  config/
-    settings.yaml           # paths, nomes de colunas, tickers internacionais, etc.
-
   app/
-    streamlit_app.py        # entrada do Streamlit
-    pages/                  # (opcional) multipáginas
-    components/             # (opcional) gráficos/tabelas reutilizáveis
+    streamlit_app.py        # "entrypoint" da aplicação
+    configs/                # configuracao de dicionario de paginas 
+    pages/                  # multipáginas
+    components/             # gráficos/tabelas reutilizáveis
 
   pipelines/
     run_pipeline.py         # orquestra (bronze->silver->snapshot->gold)
-    bronze/
-      ingest_forms.py       # leitura do CSV + normalizações mínimas
     silver/
       transform_positions.py # split/explode/parse/tipagem
       enrich_prices.py      # busca preço + cache
@@ -35,26 +31,20 @@ investment-visualizer/
       build_metrics.py      # agregações/variações para dashboard
 
   infra/
-    spark_session.py        # build_spark + configs locais
-    io.py                   # helpers de leitura/escrita (parquet/csv), criação de pastas, etc.
-    logging.py              # (opcional) logger simples
-
-  domain/
-    mappings.py             # listas/dicts: tickers internacionais, classes, aliases
-    schemas.py              # (opcional) nomes de colunas + contratos de schema
-    rules.py                # regras puras (ex: classificação nacional/internacional)
+    spark_sutils.py         # build_spark + configs locais
+    tickers_cache.py        # ACHO QUE AQUI ESTA ERRADO, ESSE ARQUIVO POSSUI AS FUNCOES DE TRANSFORMACAO USADAS NA CAMADA SILVER E UMA FUNCAO "GLOBAL" PARA LIDAR COM PARTICIONAMENTO
 
   data/
     bronze/
-      forms/                # CSVs originais (imutável)
+                            # CSVs originais (imutável)
     silver/
-      positions/            # datasets intermediários (opcional)
-      prices_cache/
+      tickers_cache/
       snapshots/
-        yyyy-mm/              # seus snapshots materializados por mês
+        YYYYMM_snapshot.csv # snapshots materializados por mês
     gold/
-      metrics/              # tabelas prontas para o app
+      YYYYMM/
+        YYYYMM_gold_....csv # tabelas prontas para o streamlit ler e plotar os graficos
 
-  notebooks/
+  notebooks/                # notebooks de testes e exploracao
     01_exploration.ipynb
     02_silver_tests.ipynb
