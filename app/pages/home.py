@@ -158,6 +158,8 @@ total_value_label = "R$ XX.XXX,XX" #subistituir por um soma ou algo do tipo, cri
 home_botao_path = "data/gold/202603/202603_gold_home_botoes_snapshot.csv"
 pizza_tipo_path = "data/gold/202603/202603_gold_pizza_tipo_snapshot.csv"
 pizza_expo_path = "data/gold/202603/202603_gold_pizza_expo_snapshot.csv"
+home_linha_path = "data/gold/202603/202603_gold_home_linha_snapshot.csv" 
+home_barra_path = "data/gold/202603/202603_gold_home_barras_snapshot.csv" 
 
 df_botoes = pd.read_csv(home_botao_path, sep=',')
 
@@ -167,6 +169,9 @@ df_pizza_tipo = df_pizza_tipo[df_pizza_tipo['instituicao_fin'] == 'ALL']
 df_pizza_expo = pd.read_csv(pizza_expo_path, sep=',')
 df_pizza_expo = df_pizza_expo[df_pizza_expo['instituicao_fin'] == 'ALL']
 
+df_home_linha = pd.read_csv(home_linha_path, sep=',')
+
+df_home_barra = pd.read_csv(home_barra_path, sep=',')
 
 page_home = PAGES['home']
 page_1    = PAGES['page_1']
@@ -262,11 +267,11 @@ with abs_left_col:
     with st.container(border=True):
         st.plotly_chart(
             build_line_chart(
-                title="Evolução Mensal",
-                x_col=None if absolute_history is None else absolute_history["mes"], # trocar nome das variaveis
-                y_col=None if absolute_history is None else absolute_history["preco_atual"], # trocar nome das variaveis
-                series_col=None if absolute_history is None else absolute_history["instituicao_fin"], # trocar nome das variaveis
-                y_axis_title="R$",
+                df=df_home_linha,
+                title="Evolução Mensal (Absolutos)",
+                x_col='mes',
+                y_col='valor_total',
+                series_col='instituicao_fin'
             ),
             use_container_width=True,
         )
@@ -276,10 +281,11 @@ with abs_right_col:
     with st.container(border=True):
         st.plotly_chart(
             build_grouped_bar_chart(
-                title="2024 x 2025 x YTD",
-                categories=None if absolute_comparison is None else absolute_comparison["categories"], 
-                series=None if absolute_comparison is None else absolute_comparison["series"],
-                y_axis_title="R$",
+                df=df_home_barra,
+                title="Evolução Anual (Absolutos)",
+                x_col='ano', 
+                y_col='valor_total',
+                series_col='instituicao_fin'
             ),
             use_container_width=True,
         )
