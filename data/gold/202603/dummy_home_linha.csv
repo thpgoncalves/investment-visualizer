@@ -1,0 +1,13 @@
+data_apuracao,ano,mes,tipo_escopo,instituicao_fin,nome_metrica,valor_total,varicao_percentual
+2026-03-14,2026,Mar,HOME,ALL,valor_total,47259.95,
+2026-03-14,2026,Mar,INSTITUICAO,CLEAR,valor_total,9008.3,
+2026-03-14,2026,Mar,INSTITUICAO,NUBANK,valor_total,7600.0,
+2026-03-14,2026,Mar,INSTITUICAO,XP,valor_total,30651.65,
+2026-04-14,2025,Apr,HOME,ALL,valor_total,48259.95,
+2026-04-14,2025,Apr,INSTITUICAO,CLEAR,valor_total,8008.3,
+2026-04-14,2025,Apr,INSTITUICAO,NUBANK,valor_total,8600.0,
+2026-04-14,2025,Apr,INSTITUICAO,XP,valor_total,32651.65,
+2026-05-14,2024,Mai,HOME,ALL,valor_total,49259.95,
+2026-05-14,2024,Mai,INSTITUICAO,CLEAR,valor_total,10008.3,
+2026-05-14,2024,Mai,INSTITUICAO,NUBANK,valor_total,8600.0,
+2026-05-14,2024,Mai,INSTITUICAO,XP,valor_total,31651.65,

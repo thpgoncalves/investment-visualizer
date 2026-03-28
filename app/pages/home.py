@@ -88,9 +88,9 @@ def render_navigation_button(val: str | float | int, page: dict) -> None:
             .replace(".", ",")
             .replace("_", ".")
         )
-        return f"{page['title']} R$ {formatted_value}"
+        return f"{page['title']} - R$ {formatted_value}"
 
-    if st.button(_normalize_label(val), use_container_width=True):
+    if st.button(_normalize_label(val), width='stretch'):
         st.switch_page(page['page_path'])
 
 # -------------------------------------------------------------------
@@ -233,7 +233,7 @@ with right_col:
                     label_col='tipo',
                     value_col='valor_total'
                 ),
-                use_container_width=True,
+                width='stretch',
             )
 
     with pie_col_2:
@@ -245,7 +245,7 @@ with right_col:
                     label_col='exposicao',
                     value_col='valor_total'
                 ),
-                use_container_width=True,
+                width='stretch',
             )
 
 
@@ -273,7 +273,7 @@ with abs_left_col:
                 y_col='valor_total',
                 series_col='instituicao_fin'
             ),
-            use_container_width=True,
+            width='stretch',
         )
 
 # avaliar como realmente ficaria essa parte aqui pra calculo de ano e ytd
@@ -287,7 +287,7 @@ with abs_right_col:
                 y_col='valor_total',
                 series_col='instituicao_fin'
             ),
-            use_container_width=True,
+            width='stretch',
         )
 
 
@@ -308,13 +308,13 @@ with pct_left_col:
     with st.container(border=True):
         st.plotly_chart(
             build_line_chart(
-                title="Variação Mensal (%)",
-                x_col=None if percentage_history is None else percentage_history["mes"], # trocar nome das variaveis
-                y_col=None if percentage_history is None else percentage_history["preco_atual"], # trocar nome das variaveis
-                series_col=None if percentage_history is None else percentage_history["instituicao_fin"], # trocar nome das variaveis
-                y_axis_title="%",
+                df=df_home_linha,
+                title="Evolução Mensal (Percentual)",
+                x_col='mes',
+                y_col='variacao_percentual',
+                series_col='instituicao_fin'
             ),
-            use_container_width=True,
+            width='stretch',
         )
 
 # avaliar como realmente ficaria essa parte aqui pra calculo de ano e ytd
@@ -322,10 +322,11 @@ with pct_right_col:
     with st.container(border=True):
         st.plotly_chart(
             build_grouped_bar_chart(
-                title="Comparação Percentual",
-                categories=None if percentage_comparison is None else percentage_comparison["categories"],
-                series=None if percentage_comparison is None else percentage_comparison["series"],
-                y_axis_title="%",
+                df=df_home_barra,
+                title="Evolução Anual (Absolutos)",
+                x_col='ano', 
+                y_col='variacao_percentual',
+                series_col='instituicao_fin'
             ),
-            use_container_width=True,
+            width='stretch',
         )
