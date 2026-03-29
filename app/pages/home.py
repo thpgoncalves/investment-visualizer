@@ -205,10 +205,10 @@ st.markdown('<div class="page-title">Janela 1 (Principal)</div>', unsafe_allow_h
 #
 # Os números das columns são proporcionais, não são pixels.
 # -------------------------------------------------------------------
-left_col, center_col, right_col = st.columns([1, 1, 2], gap="large")
-
-with left_col:
-    with st.container(border=True):
+with st.container(border=True):
+    left_col, center_col, right_col = st.columns([1, 1, 2], gap="large")
+    
+    with left_col:
         st.markdown("**Instituições Financeiras**")
         # st.caption("Atalhos de navegação para páginas reais placeholder")
 
@@ -217,15 +217,13 @@ with left_col:
         render_navigation_button(val_atual_page_3, page_3) 
         #render_navigation_button(val_atual_page_4, page_4) 
 
-with center_col:
-    with st.container(border=True, height=280):
+    with center_col:
         render_total_block(val_atual_home)
 
-with right_col:
-    pie_col_1, pie_col_2 = st.columns(2, gap="medium")
+    with right_col:
+        pie_col_1, pie_col_2 = st.columns(2, gap="medium")
 
-    with pie_col_1:
-        with st.container(border=True):
+        with pie_col_1:
             st.plotly_chart(
                 build_pie_chart(
                     df =df_pizza_tipo, 
@@ -236,8 +234,7 @@ with right_col:
                 width='stretch',
             )
 
-    with pie_col_2:
-        with st.container(border=True):
+        with pie_col_2:
             st.plotly_chart(
                 build_pie_chart(
                     df=df_pizza_expo,
@@ -247,9 +244,7 @@ with right_col:
                 ),
                 width='stretch',
             )
-
-
-st.write("")
+    st.write("")
 
 
 # -------------------------------------------------------------------
@@ -259,16 +254,15 @@ st.write("")
 # - gráfico de linha mais largo à esquerda
 # - gráfico de barras à direita
 # -------------------------------------------------------------------
-st.markdown('<div class="section-title">Absolutos</div>', unsafe_allow_html=True)
-
-abs_left_col, abs_right_col = st.columns([2.2, 1.0], gap="large")
-
-with abs_left_col:
-    with st.container(border=True):
+with st.container(border=True):
+    st.markdown('<div class="section-title">Absolutos</div>', unsafe_allow_html=True)
+    abs_left_col, abs_right_col = st.columns([2.2, 1.0], gap="large")
+    
+    with abs_left_col:
         st.plotly_chart(
             build_line_chart(
                 df=df_home_linha,
-                title="Evolução Mensal (Absolutos)",
+                title="Evolução Mensal",
                 x_col='mes',
                 y_col='valor_total',
                 series_col='instituicao_fin'
@@ -276,22 +270,20 @@ with abs_left_col:
             width='stretch',
         )
 
-# avaliar como realmente ficaria essa parte aqui pra calculo de ano e ytd
-with abs_right_col:
-    with st.container(border=True):
+    # avaliar como realmente ficaria essa parte aqui pra calculo de ano e ytd
+    with abs_right_col:
         st.plotly_chart(
             build_grouped_bar_chart(
                 df=df_home_barra,
-                title="Evolução Anual (Absolutos)",
+                title="Evolução Anual",
                 x_col='ano', 
                 y_col='valor_total',
                 series_col='instituicao_fin'
             ),
             width='stretch',
         )
-
-
-st.write("")
+    st.write("")
+    st.write("")
 
 
 # -------------------------------------------------------------------
@@ -300,33 +292,33 @@ st.write("")
 # Mesma ideia estrutural da seção acima.
 # Isso é bom porque mantém consistência visual.
 # -------------------------------------------------------------------
-st.markdown('<div class="section-title">Variações Percentuais</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title">Variações Percentuais</div>', unsafe_allow_html=True)
 
-pct_left_col, pct_right_col = st.columns([2.2, 1.0], gap="large")
+    pct_left_col, pct_right_col = st.columns([2.2, 1.0], gap="large")
 
-with pct_left_col:
-    with st.container(border=True):
+    with pct_left_col:
         st.plotly_chart(
             build_line_chart(
                 df=df_home_linha,
-                title="Evolução Mensal (Percentual)",
+                title="Evolução Mensal",
                 x_col='mes',
                 y_col='variacao_percentual',
-                series_col='instituicao_fin'
+                series_col='instituicao_fin',
+                percentual=True
             ),
             width='stretch',
         )
 
-# avaliar como realmente ficaria essa parte aqui pra calculo de ano e ytd
-with pct_right_col:
-    with st.container(border=True):
+    # avaliar como realmente ficaria essa parte aqui pra calculo de ano e ytd
+    with pct_right_col:
         st.plotly_chart(
             build_grouped_bar_chart(
                 df=df_home_barra,
-                title="Evolução Anual (Absolutos)",
+                title="Evolução Anual",
                 x_col='ano', 
                 y_col='variacao_percentual',
-                series_col='instituicao_fin'
+                series_col='instituicao_fin',
+                percentual=True
             ),
             width='stretch',
         )
