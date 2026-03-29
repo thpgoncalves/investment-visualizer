@@ -16,11 +16,15 @@ investment-visualizer/
   pyproject.toml            
   .gitignore
 
+  .streamlit/
+    config.toml             # tema da aplicação
+
   app/
     streamlit_app.py        # "entrypoint" da aplicação
     configs/                # configuracao de dicionario de paginas 
     pages/                  # multipáginas
     components/             # gráficos/tabelas reutilizáveis
+    static/                 # fontes do tema
 
   pipelines/
     run_pipeline.py         # orquestra (bronze->silver->snapshot->gold)
