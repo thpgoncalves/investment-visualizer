@@ -167,9 +167,11 @@ current_page = st.navigation(
 # do app e serve como filtro global compartilhado entre páginas.
 # -------------------------------------------------------------------
 available_months = st.session_state["available_months"]
-
+st.write("")
+st.write("")
+st.write("")
 if available_months:
-    control_col_left, control_col_right = st.columns([8, 2])
+    control_col_left, control_col_right = st.columns([9, 1])
 
     with control_col_right:
         st.selectbox(
@@ -177,6 +179,7 @@ if available_months:
             options=available_months,
             format_func=format_month_label,
             key="selected_yyyymm",
+            width=140,
             help="Por padrão, a aplicação abre no mês mais recente disponível.",
         )
 
@@ -189,7 +192,6 @@ else:
 # Executa a página atual.
 # -------------------------------------------------------------------
 current_page.run()
-
 
 ###################
 ### pra ler dps ###
