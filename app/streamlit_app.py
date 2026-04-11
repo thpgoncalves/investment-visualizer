@@ -169,18 +169,53 @@ current_page = st.navigation(
 available_months = st.session_state["available_months"]
 st.write("")
 st.write("")
-st.write("")
 if available_months:
-    control_col_left, control_col_right = st.columns([9, 1])
+    control_col_left, control_col_mid, control_col_right = st.columns(
+        [8, 1.2, 1],
+        vertical_alignment="center",
+    )   
+
+    with control_col_mid:
+        st.markdown(
+            """
+            <div
+                style="
+                    height: 38px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: flex-end;
+                    font-size: 16px;
+                "
+            >
+                Mês referência:
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     with control_col_right:
+        st.markdown(
+            """
+            <style>
+                .st-key-selected_yyyymm div[data-baseweb="select"] > div {
+                    min-height: 38px !important;
+                    padding-left: 20px !important;
+                    font-size: 0.78rem !important;
+                    border-radius: 10rem !important;
+                    align-items: center !important;
+                }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
         st.selectbox(
             "Mês de referência",
             options=available_months,
             format_func=format_month_label,
             key="selected_yyyymm",
             width=140,
-            help="Por padrão, a aplicação abre no mês mais recente disponível.",
+            label_visibility="collapsed",
         )
 
     update_month_context()
