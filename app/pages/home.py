@@ -116,7 +116,7 @@ def render_total_block(val: str | float | int) -> None:
         )
         return f"R$ {formatted_value}"
     
-    st.markdown("#### Total")
+    st.markdown('<div class="section-title" style="font-size: 24px;">Total</div>', unsafe_allow_html=True)
     st.markdown(
         f'<div class="big-total">{_normalize_label(val)}</div>',
         unsafe_allow_html=True,
@@ -187,14 +187,6 @@ val_atual_page_2 = df_botoes.loc[df_botoes['instituicao_fin'] == page_2['scope_v
 val_atual_page_3 = df_botoes.loc[df_botoes['instituicao_fin'] == page_3['scope_value'], 'valor_total'].item()
 # val_atual_page_4 = df_botoes.loc[df_botoes['instituicao_fin'] == page_4['scope_value'], 'valor_total'].item()
 
-
-
-# -------------------------------------------------------------------
-# Título da página.
-# -------------------------------------------------------------------
-st.markdown('<div class="page-title">Janela 1 (Principal)</div>', unsafe_allow_html=True)
-
-
 # -------------------------------------------------------------------
 # PRIMEIRA LINHA DA TELA
 #
@@ -209,12 +201,16 @@ with st.container(border=True):
     left_col, center_col, right_col = st.columns([1, 1, 2], gap="large")
     
     with left_col:
-        st.markdown("**Instituições Financeiras**")
+        st.markdown('<div class="section-title" style="font-size: 24px;">Instituições Financeiras</div>', unsafe_allow_html=True)
         # st.caption("Atalhos de navegação para páginas reais placeholder")
 
+        st.write("")
         render_navigation_button(val_atual_page_1, page_1)
+        st.write("")
         render_navigation_button(val_atual_page_2, page_2) 
+        st.write("")
         render_navigation_button(val_atual_page_3, page_3) 
+        st.write("")
         #render_navigation_button(val_atual_page_4, page_4) 
 
     with center_col:
@@ -255,33 +251,38 @@ with st.container(border=True):
 # - gráfico de barras à direita
 # -------------------------------------------------------------------
 with st.container(border=True):
-    st.markdown('<div class="section-title">Absolutos</div>', unsafe_allow_html=True)
-    abs_left_col, abs_right_col = st.columns([2.2, 1.0], gap="large")
-    
-    with abs_left_col:
-        st.plotly_chart(
-            build_line_chart(
-                df=df_home_linha,
-                title="Evolução Mensal",
-                x_col='mes',
-                y_col='valor_total',
-                series_col='instituicao_fin'
-            ),
-            width='stretch',
-        )
+    st.markdown('<div class="section-title" style="font-size: 28px;">Evolução Temporal</div>', unsafe_allow_html=True)
+    st.write("")
+    st.write("")
 
-    # avaliar como realmente ficaria essa parte aqui pra calculo de ano e ytd
-    with abs_right_col:
-        st.plotly_chart(
-            build_grouped_bar_chart(
-                df=df_home_barra,
-                title="Evolução Anual",
-                x_col='ano', 
-                y_col='valor_total',
-                series_col='instituicao_fin'
-            ),
-            width='stretch',
-        )
+    with st.container(border=False):
+        st.markdown('<div class="section-title" style="font-size: 24px;">Absolutos</div>', unsafe_allow_html=True)
+        abs_left_col, abs_right_col = st.columns([2.2, 1.0], gap="large")
+        
+        with abs_left_col:
+            st.plotly_chart(
+                build_line_chart(
+                    df=df_home_linha,
+                    title="Evolução Mensal",
+                    x_col='mes',
+                    y_col='valor_total',
+                    series_col='instituicao_fin'
+                ),
+                width='stretch',
+            )
+
+        # avaliar como realmente ficaria essa parte aqui pra calculo de ano e ytd
+        with abs_right_col:
+            st.plotly_chart(
+                build_grouped_bar_chart(
+                    df=df_home_barra,
+                    title="Evolução Anual",
+                    x_col='ano', 
+                    y_col='valor_total',
+                    series_col='instituicao_fin'
+                ),
+                width='stretch',
+            )
     st.write("")
     st.write("")
 
@@ -292,33 +293,34 @@ with st.container(border=True):
 # Mesma ideia estrutural da seção acima.
 # Isso é bom porque mantém consistência visual.
 # -------------------------------------------------------------------
-    st.markdown('<div class="section-title">Variações Percentuais</div>', unsafe_allow_html=True)
+    with st.container(border=False):
+        st.markdown('<div class="section-title" style="font-size: 24px;">Variações Percentuais</div>', unsafe_allow_html=True)
 
-    pct_left_col, pct_right_col = st.columns([2.2, 1.0], gap="large")
+        pct_left_col, pct_right_col = st.columns([2.2, 1.0], gap="large")
 
-    with pct_left_col:
-        st.plotly_chart(
-            build_line_chart(
-                df=df_home_linha,
-                title="Evolução Mensal",
-                x_col='mes',
-                y_col='variacao_percentual',
-                series_col='instituicao_fin',
-                percentual=True
-            ),
-            width='stretch',
-        )
+        with pct_left_col:
+            st.plotly_chart(
+                build_line_chart(
+                    df=df_home_linha,
+                    title="Evolução Mensal",
+                    x_col='mes',
+                    y_col='variacao_percentual',
+                    series_col='instituicao_fin',
+                    percentual=True
+                ),
+                width='stretch',
+            )
 
-    # avaliar como realmente ficaria essa parte aqui pra calculo de ano e ytd
-    with pct_right_col:
-        st.plotly_chart(
-            build_grouped_bar_chart(
-                df=df_home_barra,
-                title="Evolução Anual",
-                x_col='ano', 
-                y_col='variacao_percentual',
-                series_col='instituicao_fin',
-                percentual=True
-            ),
-            width='stretch',
-        )
+        # avaliar como realmente ficaria essa parte aqui pra calculo de ano e ytd
+        with pct_right_col:
+            st.plotly_chart(
+                build_grouped_bar_chart(
+                    df=df_home_barra,
+                    title="Evolução Anual",
+                    x_col='ano', 
+                    y_col='variacao_percentual',
+                    series_col='instituicao_fin',
+                    percentual=True
+                ),
+                width='stretch',
+            )
