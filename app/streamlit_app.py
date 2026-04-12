@@ -171,7 +171,7 @@ st.write("")
 st.write("")
 if available_months:
     control_col_left, control_col_mid, control_col_right = st.columns(
-        [8, 1.2, 1],
+        [8, 1, 1],
         vertical_alignment="center",
     )   
 
@@ -236,8 +236,3 @@ current_page.run()
 # import streamlit as st
 # import pandas as pd
 
-# selected_yyyymm = st.session_state["selected_yyyymm"]
-# gold_month_dir = Path(st.session_state["selected_gold_month_dir"])
-
-# df_summary = pd.read_csv(gold_month_dir / f"{selected_yyyymm}_gold_summary.csv")
-# df_xp = pd.read_csv(gold_month_dir / f"{selected_yyyymm}_gold_xp.csv")

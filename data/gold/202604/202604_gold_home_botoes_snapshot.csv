@@ -1,0 +1,5 @@
+data_apuracao,ano,mes,tipo_escopo,instituicao_fin,nome_metrica,valor_total,varicao_percentual
+2026-03-14,2026,Mar,HOME,ALL,valor_total,4657259.95,
+2026-03-14,2026,Mar,INSTITUICAO,CLEAR,valor_total,90068.3,
+2026-03-14,2026,Mar,INSTITUICAO,NUBANK,valor_total,76050.0,
+2026-03-14,2026,Mar,INSTITUICAO,XP,valor_total,3065551.65,

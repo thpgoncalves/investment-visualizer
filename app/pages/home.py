@@ -128,38 +128,14 @@ def render_total_block(val: str | float | int) -> None:
 # -------------------------------------------------------------------
 inject_page_css()
 
+# carregando variavel global selecionada
+selected_yyyymm = st.session_state["selected_yyyymm"]
 
-# -------------------------------------------------------------------
-# Estas variáveis representam os lugares onde os dados reais entrarão depois.
-#
-# A ideia aqui é:
-# - deixar explícito onde vai entrar a leitura do teu arquivo;
-# - mas sem implementar a leitura agora.
-#
-# Depois você pode preencher isso com dados vindos de:
-# - parquet
-# - csv
-# - json
-# - output do pipeline em data/gold/metrics
-# -------------------------------------------------------------------
-portfolio_snapshot = None
-
-allocation_by_type = None
-allocation_by_currency = None
-
-absolute_history = None # grafico de linhas
-absolute_comparison = None # grafico de barra
-
-percentage_history = None # grafico de linhas
-percentage_comparison = None # grafico de barra
-
-total_value_label = "R$ XX.XXX,XX" #subistituir por um soma ou algo do tipo, criar funcao para somar e pegar total e se possivel tbm pegar ytd
-
-home_botao_path = "data/gold/202603/202603_gold_home_botoes_snapshot.csv"
-pizza_tipo_path = "data/gold/202603/202603_gold_pizza_tipo_snapshot.csv"
-pizza_expo_path = "data/gold/202603/202603_gold_pizza_expo_snapshot.csv"
-home_linha_path = "data/gold/202603/202603_gold_home_linha_snapshot.csv" 
-home_barra_path = "data/gold/202603/202603_gold_home_barras_snapshot.csv" 
+home_botao_path = f"data/gold/{selected_yyyymm}/{selected_yyyymm}_gold_home_botoes_snapshot.csv"
+pizza_tipo_path = f"data/gold/{selected_yyyymm}/{selected_yyyymm}_gold_pizza_tipo_snapshot.csv"
+pizza_expo_path = f"data/gold/{selected_yyyymm}/{selected_yyyymm}_gold_pizza_expo_snapshot.csv"
+home_linha_path = f"data/gold/{selected_yyyymm}/{selected_yyyymm}_gold_home_linha_snapshot.csv" 
+home_barra_path = f"data/gold/{selected_yyyymm}/{selected_yyyymm}_gold_home_barras_snapshot.csv" 
 
 df_botoes = pd.read_csv(home_botao_path, sep=',')
 
