@@ -220,6 +220,39 @@ with st.container(border=True):
 
 
 # -------------------------------------------------------------------
+# ESTILO VISUAL DAS SUBSEÇÕES INTERNAS
+# Estratégia: contraste suave de fundo entre "Absolutos" e
+# "Variações Percentuais", mantendo tudo no mesmo container principal.
+# -------------------------------------------------------------------
+st.markdown("""
+<style>
+    .st-key-absolute-section {
+        background: linear-gradient(
+            180deg,
+            rgba(253, 253, 248, 0.96) 0%,
+            rgba(245, 243, 235, 0.98) 15%
+        );
+        border: 0px solid rgba(211, 210, 202, 0.95);
+        border-radius: 0.75rem;
+        padding: 1.2rem 1.2rem 1rem 1.2rem;
+        margin-bottom: 1rem;
+    }
+            
+    .st-key-percentage-section {
+        background: linear-gradient(
+            180deg,
+            rgba(253, 253, 248, 0.96) 0%,
+            rgba(245, 243, 235, 0.98) 15%
+        );
+        border: 0px solid rgba(211, 210, 202, 0.95);
+        border-radius: 0.75rem;
+        padding: 1.2rem 1.2rem 1rem 1.2rem;
+        margin-bottom: 1rem;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# -------------------------------------------------------------------
 # SEÇÃO DE ABSOLUTOS
 #
 # Estrutura:
@@ -227,13 +260,15 @@ with st.container(border=True):
 # - gráfico de barras à direita
 # -------------------------------------------------------------------
 with st.container(border=True):
-    st.markdown('<div class="section-title" style="font-size: 28px;">Evolução Temporal</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title" style="font-size: 32px;">Evolução Temporal</div>', unsafe_allow_html=True)
     st.write("")
     st.write("")
 
-    with st.container(border=False):
-        st.markdown('<div class="section-title" style="font-size: 24px;">Absolutos</div>', unsafe_allow_html=True)
-        abs_left_col, abs_right_col = st.columns([2.2, 1.0], gap="large")
+    with st.container(border=False, key="absolute-section"):
+        st.markdown('<div class="section-title" style="font-size: 30px;">Absolutos</div>', unsafe_allow_html=True)
+        st.write("")
+        st.write("")
+        abs_left_col, abs_right_col = st.columns([4, 2.5], gap="large")
         
         with abs_left_col:
             st.plotly_chart(
@@ -269,10 +304,11 @@ with st.container(border=True):
 # Mesma ideia estrutural da seção acima.
 # Isso é bom porque mantém consistência visual.
 # -------------------------------------------------------------------
-    with st.container(border=False):
-        st.markdown('<div class="section-title" style="font-size: 24px;">Variações Percentuais</div>', unsafe_allow_html=True)
-
-        pct_left_col, pct_right_col = st.columns([2.2, 1.0], gap="large")
+    with st.container(border=False, key="percentage-section"):
+        st.markdown('<div class="section-title" style="font-size: 30px;">Variações Percentuais</div>', unsafe_allow_html=True)
+        st.write("")
+        st.write("")
+        pct_left_col, pct_right_col = st.columns([4, 2.5], gap="large")
 
         with pct_left_col:
             st.plotly_chart(

@@ -37,6 +37,12 @@ st.page_link(
 st.write("")
 
 
+# criar novo get_variation especifico para o gold_label pra sempre calcular a variação baseado na diferenca do preco entrada e valor atual
+# ver a parte do componente de table
+
+
+
+
 # -------------------------------------------------------------------
 # Comentários de orientação para quando você for evoluir esta página:
 #
