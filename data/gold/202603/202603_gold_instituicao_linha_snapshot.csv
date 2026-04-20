@@ -1,10 +1,10 @@
-data_apuracao,ano,mes,instituicao_fin,nome,valor_total,nome_metrica,tipo_escopo
-2026-03-14,2026,Mar,XP,BERK34,651.65,valor_total,INSTITUICAO
-2026-03-14,2026,Mar,XP,tesouro,30000.0,valor_total,INSTITUICAO
-2026-03-14,2026,Mar,CLEAR,IVVB11,5959.5,valor_total,INSTITUICAO
-2026-03-14,2026,Mar,CLEAR,BOVA11,1745.5,valor_total,INSTITUICAO
-2026-03-14,2026,Mar,CLEAR,BERK34,1303.3,valor_total,INSTITUICAO
-2026-03-14,2026,Mar,NUBANK,reserva de emergencia,7600.0,valor_total,INSTITUICAO
-2026-03-14,2026,Mar,XP,ALL,30651.65,valor_total,INSTITUICAO
-2026-03-14,2026,Mar,CLEAR,ALL,9008.3,valor_total,INSTITUICAO
-2026-03-14,2026,Mar,NUBANK,ALL,7600.0,valor_total,INSTITUICAO
+data_apuracao,ano,mes,instituicao_fin,nome,valor_total,nome_metrica,tipo_escopo,variacao_percentual
+2026-03-14,2026,Mar,XP,BERK34,651.65,valor_total,INSTITUICAO,
+2026-03-14,2026,Mar,XP,tesouro,30000.0,valor_total,INSTITUICAO,
+2026-03-14,2026,Mar,CLEAR,IVVB11,5959.5,valor_total,INSTITUICAO,
+2026-03-14,2026,Mar,CLEAR,BOVA11,1745.5,valor_total,INSTITUICAO,
+2026-03-14,2026,Mar,CLEAR,BERK34,1303.3,valor_total,INSTITUICAO,
+2026-03-14,2026,Mar,NUBANK,reserva de emergencia,7600.0,valor_total,INSTITUICAO,
+2026-03-14,2026,Mar,XP,ALL,30651.65,valor_total,INSTITUICAO,
+2026-03-14,2026,Mar,CLEAR,ALL,9008.3,valor_total,INSTITUICAO,
+2026-03-14,2026,Mar,NUBANK,ALL,7600.0,valor_total,INSTITUICAO,

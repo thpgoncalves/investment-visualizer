@@ -1,11 +1,16 @@
 import streamlit as st
 import pandas as pd
-from app.config.pages import PAGES
 
+from app.config.pages import PAGES
 from app.components.charts import (
     build_grouped_bar_chart,
     build_line_chart,
     build_pie_chart,
+)
+from app.components.commons import (
+    inject_page_css,
+    render_navigation_button,
+    render_total_block
 )
 
 
@@ -17,111 +22,6 @@ from app.components.charts import (
 # - mas alguns ajustes simples ajudam a aproximar do desenho;
 # - como ainda é protótipo, estamos só refinando o visual básico.
 # -------------------------------------------------------------------
-def inject_page_css() -> None:
-    st.markdown(
-        """
-        <style>
-            .block-container {
-                padding-top: 1rem;
-                padding-bottom: 2rem;
-            }
-
-            .page-title {
-                text-align: right;
-                font-size: 0.95rem;
-                opacity: 0.9;
-                margin-bottom: 0.5rem;
-            }
-
-            .big-total {
-                font-size: 2rem;
-                font-weight: 700;
-                text-align: center;
-                margin-top: 3rem;
-            }
-
-            .section-title {
-                text-align: center;
-                font-size: 1.1rem;
-                font-weight: 600;
-                margin-top: 0.5rem;
-                margin-bottom: 0.5rem;
-            }
-
-            .small-helper {
-                font-size: 0.85rem;
-                opacity: 0.8;
-            }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-# -------------------------------------------------------------------
-# Esta função centraliza a lógica do botão que navega para outra página.
-#
-# Por que colocar isso em função?
-# - porque o comportamento se repete;
-# - porque assim o código da home fica mais legível;
-# - porque, se você quiser trocar a forma de navegação depois,
-#   muda num lugar só.
-#
-# Argumentos:
-# - label:
-#   texto do botão.
-#
-# - page_path:
-#   caminho da página para onde o botão vai levar.
-#
-# Observação:
-# - st.switch_page só funciona com páginas reconhecidas pelo app multipage.
-# - como essas páginas placeholder existem de verdade, a navegação é real.
-# -------------------------------------------------------------------
-def render_navigation_button(val: str | float | int, page: dict) -> None:
-    def _normalize_label(val: str | float | int) -> str:
-        numeric_value = float(str(val).replace(",", "."))
-        formatted_value = f"{numeric_value:,.2f}"
-        formatted_value = (
-            formatted_value
-            .replace(",", "_")
-            .replace(".", ",")
-            .replace("_", ".")
-        )
-        return f"{page['title']} - R$ {formatted_value}"
-
-    if st.button(_normalize_label(val), width='stretch'):
-        st.switch_page(page['page_path'])
-
-# -------------------------------------------------------------------
-# Esta função renderiza o bloco do total.
-#
-# Argumento:
-# - total_value_label:
-#   string pronta para exibição.
-#
-# Por que string e não float neste momento?
-# - porque você pediu esqueleto;
-# - então ainda não estamos nos preocupando com leitura nem formatação real.
-# -------------------------------------------------------------------
-def render_total_block(val: str | float | int) -> None:
-    def _normalize_label(val: str | float | int) -> str:
-        numeric_value = float(str(val).replace(",", "."))
-        formatted_value = f"{numeric_value:,.2f}"
-        formatted_value = (
-            formatted_value
-            .replace(",", "_")
-            .replace(".", ",")
-            .replace("_", ".")
-        )
-        return f"R$ {formatted_value}"
-    
-    st.markdown('<div class="section-title" style="font-size: 24px;">Total</div>', unsafe_allow_html=True)
-    st.markdown(
-        f'<div class="big-total">{_normalize_label(val)}</div>',
-        unsafe_allow_html=True,
-    )
-
 
 # -------------------------------------------------------------------
 # CSS leve da página.
@@ -129,7 +29,7 @@ def render_total_block(val: str | float | int) -> None:
 inject_page_css()
 
 # carregando variavel global selecionada
-selected_yyyymm = st.session_state["selected_yyyymm"]
+selected_yyyymm = st.session_state["selected_yyyymm"] 
 
 home_botao_path = f"data/gold/{selected_yyyymm}/{selected_yyyymm}_gold_home_botoes_snapshot.csv"
 pizza_tipo_path = f"data/gold/{selected_yyyymm}/{selected_yyyymm}_gold_pizza_tipo_snapshot.csv"
