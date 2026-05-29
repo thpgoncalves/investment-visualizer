@@ -13,7 +13,7 @@ from app.components.commons import render_total_block, inject_page_css
 inject_page_css()
 
 
-# Variaveis "Globais"
+# Preset da pagina
 PAGE_CONFIG = PAGES["page_1"]
 
 PAGE_TITLE = PAGE_CONFIG["title"]
