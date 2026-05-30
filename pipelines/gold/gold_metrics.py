@@ -12,18 +12,6 @@ from pipelines.shared.partition_handler import handler_partitions
 logger = logging.getLogger(__name__)
 
 
-GOLD_TABLE_FILE_NAMES = {
-    "home_linha": "home_linha",
-    "home_botoes": "home_botoes",
-    "home_barras": "home_barras",
-    "pizza_expo": "pizza_expo",
-    "pizza_tipo": "pizza_tipo",
-    "instituicao_linha": "instituicao_linha",
-    "instituicao_label": "instituicao_label",
-    "instituicao_barras": "instituicao_barras",
-}
-
-
 def get_variation(
     df: DataFrame,
     value_column: str,
@@ -42,9 +30,7 @@ def get_variation(
                 F.lit(None),
             ).otherwise(
                 F.round(
-                    ((F.col(value_column) - F.col("previous_value"))
-                     / F.col("previous_value"))
-                    * 100.0,
+                    ((F.col(value_column) - F.col("previous_value")) / F.col("previous_value")) * 100.0,
                     2,
                 )
             ),
@@ -53,8 +39,22 @@ def get_variation(
     )
 
 
-def prepare_silver_dataframe(df_silver: DataFrame) -> DataFrame:
-    return df_silver.select(
+def run_gold_pipeline(
+    spark,
+    *,
+    input_path: str,
+) -> list[str]:
+    logger.info("Starting gold pipeline")
+
+    saved_paths = []
+
+    df_silver = spark.read.csv(
+        path=input_path,
+        sep=",",
+        header=True,
+    )
+
+    df_silver = df_silver.select(
         F.to_timestamp(F.col("timestamp")).alias("timestamp"),
         F.to_date(F.col("data_apuracao")).alias("data_apuracao"),
         F.col("ano").cast("int").alias("ano"),
@@ -72,23 +72,7 @@ def prepare_silver_dataframe(df_silver: DataFrame) -> DataFrame:
         F.col("exposicao").cast("string").alias("exposicao"),
     )
 
-
-def get_latest_rows(
-    df: DataFrame,
-    partition_columns: list[str],
-    order_column: str = "data_apuracao",
-) -> DataFrame:
-    window = Window.partitionBy(*partition_columns).orderBy(F.col(order_column).desc())
-
-    return (
-        df
-        .withColumn("rn", F.row_number().over(window))
-        .filter(F.col("rn") == 1)
-        .drop("rn")
-    )
-
-
-def build_home_line_table(df_silver: DataFrame) -> DataFrame:
+    logger.info("Building home line table")
     df_instituicao = (
         df_silver
         .groupBy("data_apuracao", "ano", "mes", "instituicao_fin")
@@ -119,7 +103,7 @@ def build_home_line_table(df_silver: DataFrame) -> DataFrame:
         )
     )
 
-    return (
+    df_home_linha = (
         get_variation(
             df_instituicao.unionByName(df_total),
             "valor_total",
@@ -137,25 +121,19 @@ def build_home_line_table(df_silver: DataFrame) -> DataFrame:
             "variacao_percentual",
         )
     )
+    saved_paths.append(handler_partitions(df_home_linha, "gold", "home_linha"))
 
-
-def build_home_buttons_table(df_home_linha: DataFrame) -> DataFrame:
-    return get_latest_rows(
-        df_home_linha,
-        partition_columns=["instituicao_fin"],
-    ).select(
-        "data_apuracao",
-        "ano",
-        "mes",
-        "tipo_escopo",
-        "instituicao_fin",
-        "nome_metrica",
-        "valor_total",
-        "variacao_percentual",
+    logger.info("Building home buttons table")
+    latest_home_window = Window.partitionBy("instituicao_fin").orderBy(F.col("data_apuracao").desc())
+    df_home_botoes = (
+        df_home_linha
+        .withColumn("rn", F.row_number().over(latest_home_window))
+        .filter(F.col("rn") == 1)
+        .drop("rn")
     )
+    saved_paths.append(handler_partitions(df_home_botoes, "gold", "home_botoes"))
 
-
-def build_home_bar_table(df_home_linha: DataFrame) -> DataFrame:
+    logger.info("Building home bar table")
     df_home_barras = (
         df_home_linha
         .groupBy("data_apuracao", "ano", "instituicao_fin")
@@ -169,8 +147,7 @@ def build_home_bar_table(df_home_linha: DataFrame) -> DataFrame:
             F.lit("valor_total_anual").alias("nome_metrica"),
         )
     )
-
-    return (
+    df_home_barras = (
         get_variation(
             df_home_barras,
             "valor_total",
@@ -187,18 +164,21 @@ def build_home_bar_table(df_home_linha: DataFrame) -> DataFrame:
             "variacao_percentual",
         )
     )
+    saved_paths.append(handler_partitions(df_home_barras, "gold", "home_barras"))
 
-
-def build_latest_position_table(df_silver: DataFrame) -> DataFrame:
-    return get_latest_rows(
-        df_silver,
-        partition_columns=["instituicao_fin", "tipo", "nome"],
+    latest_position_window = Window.partitionBy("instituicao_fin", "tipo", "nome").orderBy(
+        F.col("data_apuracao").desc()
+    )
+    df_dados_atuais = (
+        df_silver
+        .withColumn("rn", F.row_number().over(latest_position_window))
+        .filter(F.col("rn") == 1)
+        .drop("rn")
     )
 
-
-def build_pizza_expo_table(df_latest_positions: DataFrame) -> DataFrame:
+    logger.info("Building exposure pie table")
     df_exposicao_all = (
-        df_latest_positions
+        df_dados_atuais
         .groupBy("data_apuracao", "exposicao")
         .agg(F.sum(F.col("valor_total")).alias("valor_total"))
         .select(
@@ -210,7 +190,7 @@ def build_pizza_expo_table(df_latest_positions: DataFrame) -> DataFrame:
     )
 
     df_exposicao_instituicao = (
-        df_latest_positions
+        df_dados_atuais
         .groupBy("data_apuracao", "instituicao_fin", "exposicao")
         .agg(F.sum(F.col("valor_total")).alias("valor_total"))
         .select(
@@ -221,17 +201,17 @@ def build_pizza_expo_table(df_latest_positions: DataFrame) -> DataFrame:
         )
     )
 
-    return df_exposicao_all.unionByName(df_exposicao_instituicao).select(
+    df_exposicao = df_exposicao_all.unionByName(df_exposicao_instituicao).select(
         "data_apuracao",
         "exposicao",
         "valor_total",
         "instituicao_fin",
     )
+    saved_paths.append(handler_partitions(df_exposicao, "gold", "pizza_expo"))
 
-
-def build_pizza_tipo_table(df_latest_positions: DataFrame) -> DataFrame:
+    logger.info("Building type pie table")
     df_tipo_all = (
-        df_latest_positions
+        df_dados_atuais
         .groupBy("data_apuracao", "tipo")
         .agg(F.sum(F.col("valor_total")).alias("valor_total"))
         .select(
@@ -243,7 +223,7 @@ def build_pizza_tipo_table(df_latest_positions: DataFrame) -> DataFrame:
     )
 
     df_tipo_instituicao = (
-        df_latest_positions
+        df_dados_atuais
         .groupBy("data_apuracao", "instituicao_fin", "tipo")
         .agg(F.sum(F.col("valor_total")).alias("valor_total"))
         .select(
@@ -254,16 +234,16 @@ def build_pizza_tipo_table(df_latest_positions: DataFrame) -> DataFrame:
         )
     )
 
-    return df_tipo_all.unionByName(df_tipo_instituicao).select(
+    df_tipo = df_tipo_all.unionByName(df_tipo_instituicao).select(
         "data_apuracao",
         "tipo",
         "valor_total",
         "instituicao_fin",
     )
+    saved_paths.append(handler_partitions(df_tipo, "gold", "pizza_tipo"))
 
-
-def build_instituicao_line_table(df_silver: DataFrame) -> DataFrame:
-    df_instituicao = (
+    logger.info("Building institution line table")
+    df_instituicao_page = (
         df_silver
         .groupBy("data_apuracao", "ano", "mes", "instituicao_fin", "nome")
         .agg(F.sum(F.col("valor_total")).alias("valor_total"))
@@ -279,7 +259,7 @@ def build_instituicao_line_table(df_silver: DataFrame) -> DataFrame:
         )
     )
 
-    df_total = (
+    df_total_page = (
         df_silver
         .groupBy("data_apuracao", "ano", "mes", "instituicao_fin")
         .agg(F.sum(F.col("valor_total")).alias("valor_total"))
@@ -295,9 +275,9 @@ def build_instituicao_line_table(df_silver: DataFrame) -> DataFrame:
         )
     )
 
-    return (
+    df_instituicao_linha = (
         get_variation(
-            df_instituicao.unionByName(df_total),
+            df_instituicao_page.unionByName(df_total_page),
             "valor_total",
             "data_apuracao",
             partition_columns=["instituicao_fin", "nome"],
@@ -314,16 +294,20 @@ def build_instituicao_line_table(df_silver: DataFrame) -> DataFrame:
             "variacao_percentual",
         )
     )
+    saved_paths.append(handler_partitions(df_instituicao_linha, "gold", "instituicao_linha"))
 
-
-def build_position_detail_table(df_latest_positions: DataFrame) -> DataFrame:
-    df_with_entry = df_latest_positions.withColumn(
-        "preco_entrada",
-        F.col("preco_medio") * F.col("qtd"),
+    logger.info("Building institution label table")
+    latest_institution_window = Window.partitionBy("instituicao_fin", "nome").orderBy(F.col("data_apuracao").desc())
+    df_val_atual_page = (
+        df_instituicao_linha
+        .withColumn("rn", F.row_number().over(latest_institution_window))
+        .filter(F.col("rn") == 1)
+        .drop("rn")
     )
 
-    return (
-        df_with_entry
+    df_position_details = (
+        df_dados_atuais
+        .withColumn("preco_entrada", F.col("preco_medio") * F.col("qtd"))
         .groupBy("data_apuracao", "instituicao_fin", "nome")
         .agg(
             F.sum(F.col("qtd")).alias("qtd"),
@@ -349,20 +333,8 @@ def build_position_detail_table(df_latest_positions: DataFrame) -> DataFrame:
         )
     )
 
-
-def build_instituicao_label_table(
-    df_instituicao_linha: DataFrame,
-    df_latest_positions: DataFrame,
-) -> DataFrame:
-    df_latest_values = get_latest_rows(
-        df_instituicao_linha,
-        partition_columns=["instituicao_fin", "nome"],
-    )
-
-    df_position_details = build_position_detail_table(df_latest_positions)
-
-    return (
-        df_latest_values.alias("metric")
+    df_instituicao_label = (
+        df_val_atual_page.alias("metric")
         .join(
             df_position_details.alias("position"),
             on=["data_apuracao", "instituicao_fin", "nome"],
@@ -409,9 +381,9 @@ def build_instituicao_label_table(
             "tipo_escopo",
         )
     )
+    saved_paths.append(handler_partitions(df_instituicao_label, "gold", "instituicao_label"))
 
-
-def build_instituicao_bar_table(df_instituicao_linha: DataFrame) -> DataFrame:
+    logger.info("Building institution bar table")
     df_instituicao_barras = (
         df_instituicao_linha
         .groupBy("data_apuracao", "ano", "instituicao_fin", "nome")
@@ -426,8 +398,7 @@ def build_instituicao_bar_table(df_instituicao_linha: DataFrame) -> DataFrame:
             F.lit("INSTITUICAO").alias("tipo_escopo"),
         )
     )
-
-    return (
+    df_instituicao_barras = (
         get_variation(
             df_instituicao_barras,
             "valor_total",
@@ -445,55 +416,7 @@ def build_instituicao_bar_table(df_instituicao_linha: DataFrame) -> DataFrame:
             "variacao_percentual",
         )
     )
-
-
-def build_gold_tables(df_silver: DataFrame) -> dict[str, DataFrame]:
-    df_silver = prepare_silver_dataframe(df_silver)
-    df_latest_positions = build_latest_position_table(df_silver)
-
-    df_home_linha = build_home_line_table(df_silver)
-    df_instituicao_linha = build_instituicao_line_table(df_silver)
-
-    return {
-        "home_linha": df_home_linha,
-        "home_botoes": build_home_buttons_table(df_home_linha),
-        "home_barras": build_home_bar_table(df_home_linha),
-        "pizza_expo": build_pizza_expo_table(df_latest_positions),
-        "pizza_tipo": build_pizza_tipo_table(df_latest_positions),
-        "instituicao_linha": df_instituicao_linha,
-        "instituicao_label": build_instituicao_label_table(
-            df_instituicao_linha,
-            df_latest_positions,
-        ),
-        "instituicao_barras": build_instituicao_bar_table(df_instituicao_linha),
-    }
-
-
-def write_gold_tables(gold_tables: dict[str, DataFrame]) -> list[str]:
-    saved_paths = []
-
-    for table_name, file_name in GOLD_TABLE_FILE_NAMES.items():
-        logger.info("Writing gold table: %s", table_name)
-        saved_paths.append(handler_partitions(gold_tables[table_name], "gold", file_name))
-
-    return saved_paths
-
-
-def run_gold_pipeline(
-    spark,
-    *,
-    input_path: str,
-) -> list[str]:
-    logger.info("Starting gold pipeline")
-
-    df_silver = spark.read.csv(
-        path=input_path,
-        sep=",",
-        header=True,
-    )
-
-    gold_tables = build_gold_tables(df_silver)
-    saved_paths = write_gold_tables(gold_tables)
+    saved_paths.append(handler_partitions(df_instituicao_barras, "gold", "instituicao_barras"))
 
     logger.info("Gold pipeline finished successfully")
     return saved_paths

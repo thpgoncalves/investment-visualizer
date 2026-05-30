@@ -29,7 +29,7 @@ def run_silver_pipeline(
     spark,
     *,
     input_path: str,
-) -> None:
+) -> str:
     logger.info("Starting silver pipeline")
 
     logger.info("Reading raw CSV file")
@@ -161,6 +161,8 @@ def run_silver_pipeline(
     )
 
     logger.info("Writing silver dataset")
-    logger.info(handler_partitions(df, "silver"))
+    silver_snapshot_path = handler_partitions(df, "silver")
+    logger.info("Silver snapshot saved at %s", silver_snapshot_path)
 
     logger.info("Silver pipeline finished successfully")
+    return silver_snapshot_path

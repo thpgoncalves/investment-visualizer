@@ -69,7 +69,8 @@ def handler_partitions(df: DataFrame, layer: Literal["silver", "gold"], file_nam
         location_dir.mkdir(parents=True, exist_ok=True)
         df_final.to_csv(final_file, index=False)
 
-        return f"Success file saved at: {final_file}"
+        logger.info("File saved at: %s", final_file)
+        return str(final_file)
 
     if file_name is None:
         raise ValueError("`file_name` is required when layer='gold'.")
@@ -86,4 +87,5 @@ def handler_partitions(df: DataFrame, layer: Literal["silver", "gold"], file_nam
 
     df_final.to_csv(final_file, index=False)
 
-    return f"Success file saved at: {final_file}"
+    logger.info("File saved at: %s", final_file)
+    return str(final_file)

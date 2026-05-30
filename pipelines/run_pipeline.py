@@ -1,23 +1,40 @@
-"""
-    FLUXO:
-    -> read bronze
-    -> transform silver
-    -> enrich silver
-    -> build silver snapshot
-    -> build gold metrics
-    -> save outputs    
-    -> stop spark         # n esquecer
+from __future__ import annotations
 
-    
-    EXEMPLO MENTAL
-    def run_pipeline(df_bronze: DataFrame) -> None:
-        bronze_df = ingest_forms(...)
-        silver_df = transform_positions(bronze_df)
-        enriched_df = enrich_prices(silver_df, ...)
-        snapshot_df = build_snapshot(enriched_df, snapshot_month)
-        gold_tables = build_gold_tables(snapshot_df)
+import logging
+from pathlib import Path
 
-        write_snapshot(snapshot_df, snapshot_month)
+from infra.spark_utils import build_spark
+from pipelines.gold.gold_metrics import run_gold_pipeline
+from pipelines.silver.transformations import run_silver_pipeline
 
-    return
-"""
+
+logger = logging.getLogger(__name__)
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_INPUT_PATH = PROJECT_ROOT / "data" / "bronze" / "economias.csv"
+
+
+def run_pipeline(input_path: str | Path = DEFAULT_INPUT_PATH) -> None:
+    input_path = Path(input_path)
+
+    if not input_path.is_absolute():
+        input_path = PROJECT_ROOT / input_path
+
+    spark = build_spark(app_name="investment_visualizer_pipeline")
+
+    try:
+        logger.info("Running silver pipeline")
+        silver_snapshot_path = run_silver_pipeline(spark, input_path=str(input_path))
+
+        logger.info("Running gold pipeline")
+        run_gold_pipeline(spark, input_path=silver_snapshot_path)
+
+        logger.info("Pipeline finished successfully")
+
+    finally:
+        spark.stop()
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s - %(message)s")
+    run_pipeline()
