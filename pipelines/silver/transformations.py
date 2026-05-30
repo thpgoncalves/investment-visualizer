@@ -4,9 +4,9 @@ import logging
 
 from pyspark.sql import functions as F
 
-from pipelines.shared.partitions import write_partitioned_dataframe
+from pipelines.shared.partition_handler import handler_partitions
 from infra.spark_utils import normalize_ptbr_number
-from infra.tickers_cache import get_tickers_price, handler_tickers_cache
+from pipelines.silver.tickers import get_tickers_price, handler_tickers_cache
 
 
 logger = logging.getLogger(__name__)
@@ -29,7 +29,6 @@ def run_silver_pipeline(
     spark,
     *,
     input_path: str,
-    output_path: str,
 ) -> None:
     logger.info("Starting silver pipeline")
 
@@ -162,11 +161,6 @@ def run_silver_pipeline(
     )
 
     logger.info("Writing silver dataset")
-    write_partitioned_dataframe(
-        df=df,
-        output_path=output_path,
-        partition_columns=["ano", "mes"],
-        mode="overwrite",
-    )
+    logger.info(handler_partitions(df, "silver"))
 
     logger.info("Silver pipeline finished successfully")

@@ -29,14 +29,13 @@ investment-visualizer/
   pipelines/
     run_pipeline.py         # orquestra (bronze->silver->snapshot->gold)
     silver/
-      transform_positions.py # split/explode/parse/tipagem
-      enrich_prices.py      # busca preço + cache
+      transformations.py    # split/explode/parse/tipagem
+      tickers.py            # busca preço + cache
     gold/
-      build_metrics.py      # agregações/variações para dashboard
+      gold_metrics.py       # agregações/variações para dashboard
 
   infra/
-    spark_sutils.py         # build_spark + configs locais
-    tickers_cache.py        # ACHO QUE AQUI ESTA ERRADO, ESSE ARQUIVO POSSUI AS FUNCOES DE TRANSFORMACAO USADAS NA CAMADA SILVER E UMA FUNCAO "GLOBAL" PARA LIDAR COM PARTICIONAMENTO
+    spark_utils.py          # build_spark + configs locais
 
   data/
     bronze/
