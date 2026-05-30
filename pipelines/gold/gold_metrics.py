@@ -1,5 +1,5 @@
 from infra.spark_utils import build_spark
-from infra.tickers_cache import handler_partitions
+from pipelines.shared.partition_handler import handler_partitions
 
 from pyspark.sql import functions as F
 from pyspark.sql.window import Window
