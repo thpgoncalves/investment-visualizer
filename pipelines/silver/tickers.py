@@ -170,7 +170,7 @@ def handler_tickers_cache(df_prices: DataFrame, cache_dir: str | None = None) ->
 
     # Default path: project_root/data/silver/tickers_cache
     if cache_dir is None:
-        project_root = Path(__file__).resolve().parents[1]
+        project_root = Path(__file__).resolve().parents[2]
         final_dir = project_root / "data" / "silver" / "tickers_cache"
     else:
         final_dir = Path(cache_dir)

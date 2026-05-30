@@ -54,7 +54,7 @@ def handler_partitions(df: DataFrame, layer: Literal["silver", "gold"], file_nam
     ano = row["ano"]
     mes = row["mes"]
 
-    project_root = Path(__file__).resolve().parents[1]
+    project_root = Path(__file__).resolve().parents[2]
     partition_ref = f"{ano}{mes:02d}"
     df_final = df.toPandas().copy()
 
