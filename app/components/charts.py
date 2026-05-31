@@ -100,10 +100,17 @@ def build_pie_chart(
         )
     )
 
-    figure.update_layout(
-        **build_base_layout(title),
-        height=280
+    layout = build_base_layout(title)
+    layout["height"] = 300
+    layout["margin"] = dict(l=30, r=30, t=76, b=46)
+    layout["title"] = dict(
+        text=title,
+        x=0.5,
+        xanchor="center",
+        y=0.98,
     )
+
+    figure.update_layout(**layout)
 
     return figure
 

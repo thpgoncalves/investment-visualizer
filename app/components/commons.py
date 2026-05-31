@@ -63,7 +63,7 @@ def inject_page_css() -> None:
                 font-size: 2rem;
                 font-weight: 700;
                 text-align: center;
-                margin-top: 3rem;
+                margin-top: 0;
             }
 
             .section-title {
@@ -90,9 +90,9 @@ def inject_page_css() -> None:
                 border: 1px solid rgba(197, 194, 181, 0.95);
                 color: rgb(38, 43, 39);
                 font-family: inherit;
-                font-size: 0.96rem;
+                font-size: 1.02rem;
                 font-weight: 500;
-                min-height: 2.55rem;
+                min-height: 3.05rem;
                 border-radius: 999px;
                 box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
                 transition:

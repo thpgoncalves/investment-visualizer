@@ -74,23 +74,37 @@ val_atual_page_4 = df_botoes.loc[df_botoes['instituicao_fin'] == page_4['scope_v
 # Os números das columns são proporcionais, não são pixels.
 # -------------------------------------------------------------------
 with st.container(border=True):
+    st.markdown(
+        """
+        <style>
+            .st-key-home-total-block {
+                min-height: 15.2rem;
+                display: flex;
+                flex-direction: column;
+            }
+
+            .st-key-home-total-block .big-total {
+                margin-top: 4.25rem;
+            }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
     left_col, center_col, right_col = st.columns([1, 1, 2], gap="large")
     
     with left_col:
         st.markdown('<div class="section-title" style="font-size: 24px;">Instituições Financeiras</div>', unsafe_allow_html=True)
         # st.caption("Atalhos de navegação para páginas reais placeholder")
 
-        st.write("")
         render_navigation_button(val_atual_page_1, page_1)
-        st.write("")
         render_navigation_button(val_atual_page_2, page_2) 
-        st.write("")
         render_navigation_button(val_atual_page_3, page_3) 
-        st.write("")
         render_navigation_button(val_atual_page_4, page_4)
 
     with center_col:
-        render_total_block(val_atual_home)
+        with st.container(border=False, key="home-total-block"):
+            render_total_block(val_atual_home)
 
     with right_col:
         pie_col_1, pie_col_2 = st.columns(2, gap="medium")
