@@ -29,7 +29,10 @@ selected_yyyymm = st.session_state["selected_yyyymm"]
 investimentos_path = f"data/gold/{selected_yyyymm}/{selected_yyyymm}_gold_instituicao_label_snapshot.csv"
 df_investimentos = pd.read_csv(investimentos_path)
 
-df_investimentos_filtrado = df_investimentos[(df_investimentos['instituicao_fin'] == PAGE_SCOPE_VALUE) & (df_investimentos['nome'] != 'ALL')]
+df_investimentos_filtrado = (
+    df_investimentos[(df_investimentos['instituicao_fin'] == PAGE_SCOPE_VALUE) & (df_investimentos['nome'] != 'ALL')]
+    .sort_values("valor_total", ascending=False)
+)
 page_total = df_investimentos.loc[((df_investimentos['instituicao_fin'] == PAGE_SCOPE_VALUE) & (df_investimentos['nome'] == 'ALL')), 'valor_total'].item()
 
 pizza_tipo_path = f"data/gold/{selected_yyyymm}/{selected_yyyymm}_gold_pizza_tipo_snapshot.csv"

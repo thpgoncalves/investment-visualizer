@@ -209,6 +209,8 @@ __marimo__/
 # Investment Visualizer local data
 # Keep only dummy/sample files in version control. Personal inputs and newly
 # generated pipeline outputs should stay local.
+preenchimento.txt
+
 data/bronze/*.csv
 !data/bronze/dummy.csv
 

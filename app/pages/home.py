@@ -53,7 +53,7 @@ page_home = PAGES['home']
 page_1    = PAGES['page_1']
 page_2    = PAGES['page_2']
 page_3    = PAGES['page_3']
-# page_4    = PAGES['page_4']
+page_4    = PAGES['page_4']
 
 
 # jogar tratamento dentro da funcao para adicionar R$ . para separacao e , nos decimais.
@@ -61,7 +61,7 @@ val_atual_home = df_botoes.loc[df_botoes['instituicao_fin'] == page_home['scope_
 val_atual_page_1 = df_botoes.loc[df_botoes['instituicao_fin'] == page_1['scope_value'], 'valor_total'].item() 
 val_atual_page_2 = df_botoes.loc[df_botoes['instituicao_fin'] == page_2['scope_value'], 'valor_total'].item()
 val_atual_page_3 = df_botoes.loc[df_botoes['instituicao_fin'] == page_3['scope_value'], 'valor_total'].item()
-# val_atual_page_4 = df_botoes.loc[df_botoes['instituicao_fin'] == page_4['scope_value'], 'valor_total'].item()
+val_atual_page_4 = df_botoes.loc[df_botoes['instituicao_fin'] == page_4['scope_value'], 'valor_total'].item()
 
 # -------------------------------------------------------------------
 # PRIMEIRA LINHA DA TELA
@@ -87,7 +87,7 @@ with st.container(border=True):
         st.write("")
         render_navigation_button(val_atual_page_3, page_3) 
         st.write("")
-        #render_navigation_button(val_atual_page_4, page_4) 
+        render_navigation_button(val_atual_page_4, page_4)
 
     with center_col:
         render_total_block(val_atual_home)

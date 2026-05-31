@@ -41,11 +41,6 @@ def render_navigation_button(val: str | float | int, page: dict) -> None:
     button_key = f"nav_button_{page['scope_value'].lower()}"
 
     if st.button(_normalize_label(val), key=button_key, width='stretch'):
-        selected_month = st.session_state.get("selected_yyyymm")
-
-        if selected_month:
-            st.session_state["selected_yyyymm"] = selected_month
-
         st.switch_page(str(APP_DIR / page['page_path']))
 
 def inject_page_css() -> None:

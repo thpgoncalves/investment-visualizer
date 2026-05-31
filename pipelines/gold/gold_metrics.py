@@ -329,9 +329,9 @@ def run_gold_pipeline(
             F.col("instituicao_fin"),
             F.col("nome"),
             F.round(F.col("qtd"), 8).alias("qtd"),
-            F.round(F.col("preco_medio"), 2).alias("preco_medio"),
+            F.round(F.col("preco_medio"), 8).alias("preco_medio"),
             F.round(F.col("preco_entrada"), 2).alias("preco_entrada"),
-            F.round(F.col("preco_atual"), 2).alias("preco_atual"),
+            F.round(F.col("preco_atual"), 8).alias("preco_atual"),
         )
     )
 

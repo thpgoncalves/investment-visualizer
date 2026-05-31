@@ -1,11 +1,6 @@
 data_apuracao,ano,instituicao_fin,valor_total,tipo_escopo,nome_metrica,variacao_percentual
-2025-12-31,2025,ALL,75893.2,HOME,valor_total_anual,
-2026-05-31,2026,ALL,108692.4,HOME,valor_total_anual,43.22
-2025-12-31,2025,BINANCE,31815.0,HOME,valor_total_anual,
-2026-05-31,2026,BINANCE,56900.0,HOME,valor_total_anual,78.85
-2025-12-31,2025,CLEAR,4487.2,HOME,valor_total_anual,
-2026-05-31,2026,CLEAR,7838.7,HOME,valor_total_anual,74.69
-2025-12-31,2025,NUBANK,12205.0,HOME,valor_total_anual,
-2026-05-31,2026,NUBANK,13320.0,HOME,valor_total_anual,9.14
-2025-12-31,2025,XP,27386.0,HOME,valor_total_anual,
-2026-05-31,2026,XP,30633.7,HOME,valor_total_anual,11.86
+2026-05-31,2026,ALL,102627.5,HOME,valor_total_anual,
+2026-05-31,2026,BINANCE,5232.24,HOME,valor_total_anual,
+2026-05-31,2026,CLEAR,19087.8,HOME,valor_total_anual,
+2026-05-31,2026,NUBANK,15192.89,HOME,valor_total_anual,
+2026-05-31,2026,XP,63114.57,HOME,valor_total_anual,

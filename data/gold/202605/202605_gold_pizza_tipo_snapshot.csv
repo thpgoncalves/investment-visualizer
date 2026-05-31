@@ -1,11 +1,9 @@
 data_apuracao,tipo,valor_total,instituicao_fin
-2026-05-31,cripto,56900.0,ALL
-2026-05-31,stock,9200.7,ALL
-2026-05-31,renda fixa,39700.0,ALL
-2026-05-31,fundo imobiliario,2891.7,ALL
-2026-05-31,cripto,56900.0,BINANCE
-2026-05-31,stock,7838.7,CLEAR
-2026-05-31,renda fixa,13320.0,NUBANK
-2026-05-31,fundo imobiliario,2891.7,XP
-2026-05-31,renda fixa,26380.0,XP
-2026-05-31,stock,1362.0,XP
+2026-05-31,cripto,5232.24,ALL
+2026-05-31,stock,40714.25,ALL
+2026-05-31,renda fixa,56681.01,ALL
+2026-05-31,cripto,5232.24,BINANCE
+2026-05-31,stock,19087.8,CLEAR
+2026-05-31,renda fixa,15192.89,NUBANK
+2026-05-31,renda fixa,41488.12,XP
+2026-05-31,stock,21626.45,XP

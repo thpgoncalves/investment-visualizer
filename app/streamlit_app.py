@@ -103,7 +103,7 @@ page_home = PAGES["home"]
 page_1 = PAGES["page_1"]
 page_2 = PAGES["page_2"]
 page_3 = PAGES["page_3"]
-# page_4 = PAGES['page_4']
+page_4 = PAGES["page_4"]
 
 # -------------------------------------------------------------------
 # Cada st.Page representa uma página real da aplicação.
@@ -139,11 +139,11 @@ clear_page = st.Page(
     icon=":material/show_chart:",
 )
 
-# binance_page = st.Page(
-#     str(APP_DIR / page_4['page_path']),
-#     title="Binance",
-#     icon=":material/currency_bitcoin:",
-# )
+binance_page = st.Page(
+    str(APP_DIR / page_4["page_path"]),
+    title="Binance",
+    icon=":material/currency_bitcoin:",
+)
 
 # -------------------------------------------------------------------
 # st.navigation cria a navegação multipage.
@@ -154,7 +154,7 @@ current_page = st.navigation(
         xp_page,
         nubank_page,
         clear_page,
-        # binance_page,
+        binance_page,
     ],
     position="top",
     expanded=True,
