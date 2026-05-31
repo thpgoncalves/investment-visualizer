@@ -12,6 +12,17 @@ from app.components.commons import render_total_block, inject_page_css
 
 inject_page_css()
 
+st.markdown(
+    """
+    <style>
+        .st-key-institution-total-block .big-total {
+            margin-top: 3.6rem;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 
 # Variaveis "Globais"
 PAGE_CONFIG = PAGES["page_4"]
@@ -73,7 +84,8 @@ with st.container(border=True):
         st.dataframe(df_investimentos_filtrado[['nome', 'qtd', 'preco_medio', 'preco_atual', 'variacao_percentual', 'valor_total',]], hide_index=True)
 
     with center_col:
-        render_total_block(page_total)
+        with st.container(border=False, key="institution-total-block"):
+            render_total_block(page_total)
 
 
     with right_col:
