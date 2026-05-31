@@ -134,15 +134,17 @@ def run_gold_pipeline(
     saved_paths.append(handler_partitions(df_home_botoes, "gold", "home_botoes"))
 
     logger.info("Building home bar table")
+    annual_home_window = Window.partitionBy("ano", "instituicao_fin").orderBy(F.col("data_apuracao").desc())
     df_home_barras = (
         df_home_linha
-        .groupBy("data_apuracao", "ano", "instituicao_fin")
-        .agg(F.sum("valor_total").alias("valor_total"))
+        .withColumn("rn", F.row_number().over(annual_home_window))
+        .filter(F.col("rn") == 1)
+        .drop("rn")
         .select(
             F.col("data_apuracao"),
             F.col("ano"),
             F.col("instituicao_fin"),
-            F.round(F.col("valor_total"), 2).alias("valor_total"),
+            F.col("valor_total"),
             F.lit("HOME").alias("tipo_escopo"),
             F.lit("valor_total_anual").alias("nome_metrica"),
         )
@@ -384,16 +386,20 @@ def run_gold_pipeline(
     saved_paths.append(handler_partitions(df_instituicao_label, "gold", "instituicao_label"))
 
     logger.info("Building institution bar table")
+    annual_institution_window = Window.partitionBy("ano", "instituicao_fin", "nome").orderBy(
+        F.col("data_apuracao").desc()
+    )
     df_instituicao_barras = (
         df_instituicao_linha
-        .groupBy("data_apuracao", "ano", "instituicao_fin", "nome")
-        .agg(F.sum("valor_total").alias("valor_total"))
+        .withColumn("rn", F.row_number().over(annual_institution_window))
+        .filter(F.col("rn") == 1)
+        .drop("rn")
         .select(
             F.col("data_apuracao"),
             F.col("ano"),
             F.col("instituicao_fin"),
             F.col("nome"),
-            F.round(F.col("valor_total"), 2).alias("valor_total"),
+            F.col("valor_total"),
             F.lit("valor_total_anual").alias("nome_metrica"),
             F.lit("INSTITUICAO").alias("tipo_escopo"),
         )

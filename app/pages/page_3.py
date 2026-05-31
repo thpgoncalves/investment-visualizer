@@ -47,14 +47,21 @@ df_instituicao_linha = pd.read_csv(instituicao_linha_path)
 
 df_instituicao_linha_filtrado = df_instituicao_linha[df_instituicao_linha['instituicao_fin'] == PAGE_SCOPE_VALUE]
 
-home_barra_path = f"data/gold/{selected_yyyymm}/{selected_yyyymm}_gold_instituicao_linha_snapshot.csv"
+home_barra_path = f"data/gold/{selected_yyyymm}/{selected_yyyymm}_gold_instituicao_barras_snapshot.csv"
 df_home_barra = pd.read_csv(home_barra_path)
 
 df_home_barra_filtrado = df_home_barra[df_home_barra['instituicao_fin'] == PAGE_SCOPE_VALUE]
 
-st.title(f"{PAGE_TITLE}")
-
 with st.container(border=True):
+    st.markdown(
+        f"""
+        <div class="institution-heading">
+            <span class="institution-name">{PAGE_TITLE}</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
     left_col, center_col, right_col = st.columns([3.8, 1.7, 3.5], gap="large")
     
     with left_col:
