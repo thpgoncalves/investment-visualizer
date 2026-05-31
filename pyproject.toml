@@ -18,6 +18,10 @@ dependencies = [
   "yfinance==1.2.0"
 ]
 
+[project.scripts]
+iv-run = "app.commands:iv_run"
+iv-app = "app.commands:iv_app"
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["infra*", "pipelines*", "app*"]
