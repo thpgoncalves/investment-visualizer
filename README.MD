@@ -348,10 +348,40 @@ Ou faça tudo em sequência:
 iv-run
 ```
 
+## Desenvolvimentos Futuros 🧭
+
+### Retenção e limpeza de snapshots
+
+Resumo: criar uma estratégia para controlar o volume de snapshots gerados em `data/silver` e `data/gold`, mantendo o histórico útil sem acumular arquivos mensais indefinidamente.
+
+| Regra futura | Objetivo |
+| --- | --- |
+| Manter snapshots dos últimos X meses | Preservar navegação mensal recente no app. |
+| Preservar o último snapshot de cada ano | Manter um marco histórico anual completo. |
+| Remover snapshots mensais intermediários antigos | Reduzir volume de arquivos locais. |
+| Executar limpeza por comando dedicado | Evitar deleções automáticas inesperadas durante a pipeline principal. |
+
+#### Por que isso faz sentido: 
+- Se o projeto for usado por anos, a quantidade de arquivos mensais tende a crescer. A retenção ajudaria a manter o projeto leve e mais fácil de navegar, sem perder a leitura histórica. Um caminho possível é preservar todos os snapshots recentes, como os últimos 12 meses, e manter o último snapshot de cada ano como marco anual. 
+- Assim, os meses intermediários mais antigos poderiam ser removidos por uma regra explícita, sem afetar a análise anual. E caso queira, mantendo o snapshot anual eu consigo refazer todos os arquivos de todos os meses baseado nele.
+
+### Dockerização da aplicação
+
+Resumo: empacotar a aplicação em Docker para padronizar a execução da pipeline e do Streamlit em diferentes ambientes.
+
+| Frente | Benefício |
+| --- | --- |
+| Ambiente Python isolado | Reduz problemas de versão de Python e dependências locais. |
+| Java e PySpark no container | Evita configuração manual do runtime necessário para a pipeline. |
+| Comandos previsíveis | Facilita rodar a aplicação com o mesmo comportamento em outra máquina. |
+| Volumes para `data/` | Permite manter os dados fora do container, preservando snapshots e entradas locais. |
+
+Por que isso faz sentido: hoje o projeto depende do ambiente local estar corretamente configurado, incluindo Python, Java, PySpark e pacotes do `pyproject.toml`. A dockerização deixaria essa base mais estável e reprodutível, principalmente para rodar o projeto em outra máquina ou depois de muito tempo sem mexer no ambiente. A ideia não é transformar o projeto em uma plataforma complexa, mas criar uma forma confiável de executar a pipeline e abrir o dashboard sem depender tanto do setup manual do sistema operacional.
+
 ## Observações 📝
 
 - O projeto é local e pessoal; a simplicidade da estrutura é intencional.
+- A escolha por tecnologias mais robustas, como Spark em vez de uma solução 100% em pandas, foi intencional. Mesmo não sendo a opção mais simples ou performática para este volume de dados, ela foi usada como forma de estudo e experimentação.
 - A Silver concentra limpeza e enriquecimento.
 - A Gold entrega dados prontos para o Streamlit.
 - O app deve ler e plotar, não refazer regra pesada de transformação.
-- Para testar sem dados reais, use `data/bronze/dummy.csv`.

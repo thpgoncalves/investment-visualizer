@@ -1,5 +1,4 @@
 import logging
-import shutil
 
 from pathlib import Path
 from typing import Literal
@@ -20,8 +19,8 @@ def handler_partitions(df: DataFrame, layer: Literal["silver", "gold"], file_nam
         Regras de gravação por camada:
             - silver:
                 salva o arquivo em `data/silver/snapshots`.
-                Se a pasta de destino já existir, ela é removida completamente antes
-                da nova gravação, garantindo um reprocessamento completo da camada.
+                Se o snapshot da mesma partição já existir, apenas esse arquivo é
+                removido antes da nova gravação, preservando snapshots de outros meses.
             - gold:
                 salva o arquivo em `data/gold/<partition_ref>`.
                 Se o arquivo de destino já existir, apenas esse arquivo é removido antes
@@ -62,11 +61,12 @@ def handler_partitions(df: DataFrame, layer: Literal["silver", "gold"], file_nam
         location_dir = project_root / "data" / "silver" / "snapshots"
         final_file = location_dir / f"{partition_ref}_silver_snapshot.csv"
 
-        if location_dir.exists():
-            logger.info("Existing silver snapshot directory found. Deleting before saving new file.")
-            shutil.rmtree(location_dir)
-
         location_dir.mkdir(parents=True, exist_ok=True)
+
+        if final_file.exists():
+            logger.info("Existing silver snapshot file found. Deleting before saving new file.")
+            final_file.unlink()
+
         df_final.to_csv(final_file, index=False)
 
         logger.info("File saved at: %s", final_file)
