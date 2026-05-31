@@ -1,0 +1,6 @@
+data_apuracao,ano,mes,tipo_escopo,instituicao_fin,nome_metrica,valor_total,variacao_percentual
+2026-05-31,2026,Mai,HOME,ALL,valor_total,108692.4,7.62
+2026-05-31,2026,Mai,INSTITUICAO,BINANCE,valor_total,56900.0,11.81
+2026-05-31,2026,Mai,INSTITUICAO,CLEAR,valor_total,7838.7,10.49
+2026-05-31,2026,Mai,INSTITUICAO,NUBANK,valor_total,13320.0,1.87
+2026-05-31,2026,Mai,INSTITUICAO,XP,valor_total,30633.7,2.34
