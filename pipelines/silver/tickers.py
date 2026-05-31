@@ -15,8 +15,8 @@ logger = logging.getLogger(__name__)
 def get_tickers_price(df: DataFrame, lookback_days: int = 7) -> DataFrame:
     """
         Busca no Yahoo Finance o preço de fechamento mais recente disponível para cada ticker de ação presente no DataFrame de entrada. 
-        A função considera apenas registros com `tipo = "stock"`, extrai os tickers distintos da coluna `nome` e adiciona o sufixo `.SA` 
-        quando necessário para consulta no Yahoo.
+        A função considera apenas registros com `tipo = "stock"` e `preco_atual` vazio,
+        extrai os tickers distintos da coluna `nome` e adiciona o sufixo `.SA` quando necessário para consulta no Yahoo.
 
         A busca é feita no intervalo entre a data atual menos `lookback_days` e a data atual. 
         Para cada ticker, é selecionado o fechamento mais recente com valor válido (`close` não nulo e maior que zero), 
@@ -33,6 +33,7 @@ def get_tickers_price(df: DataFrame, lookback_days: int = 7) -> DataFrame:
     
     df_filtrado = (df
                    .filter(F.col('tipo') == F.lit("stock"))
+                   .filter(F.col('preco_atual').isNull())
                    .select(F.col('nome').alias('ticker'))
                    .filter(F.col('ticker').isNotNull() & (F.col('ticker') != ''))
                    .distinct()

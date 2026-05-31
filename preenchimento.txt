@@ -1,0 +1,18 @@
+XP
+stock | carteira automatizada | 1 | 18000,00 | 21626,45
+renda fixa | Tesouro IPCA + 2040 | 1 | 30010,30 | 29934,93
+renda fixa | CDB Digimais Jul/2029 | 1 | 11000,00 | 11553,19
+
+
+Nu
+renda fixa | Fundo de Emergencia | 1 | 13000,00 | 15192,89
+
+
+Clear
+stock | BOVA11 | 57 | 175,22 | 
+stock | IVVB11 | 11 | 376,85 |
+stock | BERK34 | 22 | 130,09 |  
+stock | OCPT3 | 155 | 4,23 |
+stock | RAIZ4 | 900 | 7,09 | 
+stock | AMER3 | 4 | 85,65 | 
+
