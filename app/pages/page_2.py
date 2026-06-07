@@ -10,9 +10,11 @@ from app.components.charts import (
 from app.components.commons import (
     build_investments_table_display,
     build_investments_table_column_config,
+    filter_temporal_window,
     get_dataframe_height,
-    render_total_block,
     inject_page_css,
+    render_temporal_filter,
+    render_total_block,
 )
 
 
@@ -161,6 +163,11 @@ st.markdown("""
 # -------------------------------------------------------------------
 with st.container(border=True):
     st.markdown('<div class="section-title" style="font-size: 32px;">Evolução Temporal</div>', unsafe_allow_html=True)
+    temporal_filter = render_temporal_filter("page_2")
+    df_instituicao_linha_temporal = filter_temporal_window(
+        df_instituicao_linha_filtrado,
+        temporal_filter,
+    )
     st.write("")
     st.write("")
 
@@ -173,7 +180,7 @@ with st.container(border=True):
         with abs_left_col:
             st.plotly_chart(
                 build_line_chart(
-                    df=df_instituicao_linha_filtrado,
+                    df=df_instituicao_linha_temporal,
                     title="Evolução Mensal",
                     x_col='mes',
                     y_col='valor_total',
@@ -210,7 +217,7 @@ with st.container(border=True):
         with pct_left_col:
             st.plotly_chart(
                 build_line_chart(
-                    df=df_instituicao_linha_filtrado,
+                    df=df_instituicao_linha_temporal,
                     title="Evolução Mensal",
                     x_col='mes',
                     y_col='variacao_percentual',

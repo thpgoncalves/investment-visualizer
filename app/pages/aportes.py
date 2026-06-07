@@ -7,7 +7,9 @@ from app.components.charts import build_grouped_bar_chart, build_line_chart
 from app.components.commons import (
     build_aportes_table_display,
     build_aportes_table_column_config,
+    filter_temporal_window,
     inject_page_css,
+    render_temporal_filter,
     render_total_block,
     render_value_block,
 )
@@ -150,6 +152,11 @@ st.markdown("""
 
 with st.container(border=True):
     st.markdown('<div class="section-title" style="font-size: 32px;">Evolução Temporal</div>', unsafe_allow_html=True)
+    temporal_filter = render_temporal_filter("aportes")
+    df_aportes_linha_temporal = filter_temporal_window(
+        df_aportes_linha,
+        temporal_filter,
+    )
     st.write("")
     st.write("")
 
@@ -162,7 +169,7 @@ with st.container(border=True):
         with abs_left_col:
             st.plotly_chart(
                 build_line_chart(
-                    df=df_aportes_linha,
+                    df=df_aportes_linha_temporal,
                     title="Evolução Mensal",
                     x_col="mes",
                     y_col="valor_total",

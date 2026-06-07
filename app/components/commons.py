@@ -5,6 +5,12 @@ import streamlit as st
 
 ColumnKind = Literal["text", "currency", "percent", "float", "integer"]
 APP_DIR = Path(__file__).resolve().parents[1]
+TEMPORAL_FILTER_OPTIONS = ("YTD", "6 meses", "12 meses", "24 meses")
+TEMPORAL_FILTER_MONTHS = {
+    "6 meses": 6,
+    "12 meses": 12,
+    "24 meses": 24,
+}
 INVESTMENTS_TABLE_COLUMNS = [
     "nome",
     "qtd",
@@ -43,6 +49,81 @@ def render_total_block(val: str | float | int) -> None:
 
 def get_dataframe_height(df: pd.DataFrame) -> int:
     return 42 + (len(df) * 35)
+
+
+def render_temporal_filter(page_key: str) -> str:
+    st.markdown(
+        """
+        <style>
+            .temporal-filter-label {
+                color: rgba(61, 58, 42, 0.72);
+                font-size: 0.78rem;
+                font-weight: 600;
+                letter-spacing: 0;
+                margin-bottom: 0.1rem;
+                text-align: left;
+            }
+
+            div[class*="st-key-temporal_filter_"] {
+                display: flex;
+                justify-content: flex-start;
+                margin-bottom: 0.3rem;
+            }
+
+            div[class*="st-key-temporal_filter_"] [role="radiogroup"] {
+                align-items: center;
+                gap: 1.05rem;
+                justify-content: flex-start;
+            }
+
+            div[class*="st-key-temporal_filter_"] label {
+                color: rgba(61, 58, 42, 0.82);
+                font-size: 0.84rem;
+                font-weight: 500;
+            }
+        </style>
+        <div class="temporal-filter-label">Temporalidade</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    return st.radio(
+        "Temporalidade",
+        TEMPORAL_FILTER_OPTIONS,
+        index=0,
+        horizontal=True,
+        key=f"temporal_filter_{page_key}",
+        label_visibility="collapsed",
+    )
+
+
+def filter_temporal_window(
+    df: pd.DataFrame,
+    temporal_filter: str,
+    date_col: str = "data_apuracao",
+) -> pd.DataFrame:
+    if df.empty or date_col not in df.columns:
+        return df.copy()
+
+    filtered_df = df.copy()
+    filtered_df[date_col] = pd.to_datetime(filtered_df[date_col])
+    available_periods = filtered_df[date_col].dt.to_period("M")
+    reference_period = available_periods.max()
+
+    if temporal_filter == "YTD":
+        start_period = pd.Period(year=reference_period.year, month=1, freq="M")
+    else:
+        months = TEMPORAL_FILTER_MONTHS.get(temporal_filter, 12)
+        start_period = reference_period - (months - 1)
+
+    return (
+        filtered_df[
+            (available_periods >= start_period)
+            & (available_periods <= reference_period)
+        ]
+        .sort_values(date_col)
+        .copy()
+    )
 
 
 def format_compact_number(val: str | float | int, *, max_decimals: int = 8) -> str:
