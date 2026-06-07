@@ -22,7 +22,9 @@ A primeira área da Home mostra o total consolidado do mês, os atalhos para cad
 
 ### Evolução temporal em valores absolutos 📈
 
-Essa seção mostra a evolução do patrimônio ao longo do tempo. O gráfico mensal acompanha a linha de cada instituição e o consolidado geral. O gráfico anual resume o último snapshot disponível de cada ano, evitando que um mesmo ano apareça com múltiplos registros.
+Essa seção mostra a evolução do patrimônio em valores absolutos. O gráfico mensal acompanha a linha de cada instituição e o consolidado geral, enquanto o gráfico anual compara o último snapshot disponível de cada ano, evitando que um mesmo ano apareça com múltiplos registros.
+
+> A opção de temporalidade controla a janela exibida nos gráficos de linha de evolução mensal da página atual. É possível alternar entre `YTD`, `6 meses`, `12 meses` e `24 meses`; essa escolha afeta os gráficos mensais de linha em valores absolutos e em variações percentuais, sem alterar os gráficos anuais, tabelas, cards ou distribuições.
 
 ![Evolução temporal em valores absolutos](docs/images/03-evolucao-absolutos.png)
 
