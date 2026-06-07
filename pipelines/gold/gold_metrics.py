@@ -57,6 +57,7 @@ def run_gold_pipeline(
     df_silver = df_silver.select(
         F.to_timestamp(F.col("timestamp")).alias("timestamp"),
         F.to_date(F.col("data_apuracao")).alias("data_apuracao"),
+        F.col("bronze_row_id").cast("int").alias("bronze_row_id"),
         F.col("ano").cast("int").alias("ano"),
         F.col("mes_num").cast("int").alias("mes_num"),
         F.col("mes").cast("string").alias("mes"),
@@ -167,6 +168,120 @@ def run_gold_pipeline(
         )
     )
     saved_paths.append(handler_partitions(df_home_barras, "gold", "home_barras"))
+
+    logger.info("Building contributions base table")
+    df_aportes_base = (
+        df_silver
+        .filter(F.col("aporte").isNotNull())
+        .select(
+            "bronze_row_id",
+            "timestamp",
+            "data_apuracao",
+            "ano",
+            "mes_num",
+            "mes",
+            "instituicao_fin",
+            "aporte",
+        )
+    )
+
+    df_aportes_base = df_aportes_base.dropDuplicates(["bronze_row_id"])
+
+    logger.info("Building contributions line table")
+    df_aportes_instituicao = (
+        df_aportes_base
+        .groupBy("data_apuracao", "ano", "mes_num", "mes", "instituicao_fin")
+        .agg(F.sum(F.col("aporte")).alias("valor_total"))
+        .select(
+            F.col("data_apuracao"),
+            F.col("ano"),
+            F.col("mes_num"),
+            F.col("mes"),
+            F.lit("INSTITUICAO").alias("tipo_escopo"),
+            F.col("instituicao_fin"),
+            F.lit("valor_aporte").alias("nome_metrica"),
+            F.round(F.col("valor_total"), 2).alias("valor_total"),
+        )
+    )
+
+    df_aportes_total = (
+        df_aportes_base
+        .groupBy("data_apuracao", "ano", "mes_num", "mes")
+        .agg(F.sum(F.col("aporte")).alias("valor_total"))
+        .select(
+            F.col("data_apuracao"),
+            F.col("ano"),
+            F.col("mes_num"),
+            F.col("mes"),
+            F.lit("APORTES").alias("tipo_escopo"),
+            F.lit("ALL").alias("instituicao_fin"),
+            F.lit("valor_aporte").alias("nome_metrica"),
+            F.round(F.col("valor_total"), 2).alias("valor_total"),
+        )
+    )
+
+    df_aportes_linha = (
+        df_aportes_instituicao.unionByName(df_aportes_total)
+        .select(
+            "data_apuracao",
+            "ano",
+            "mes_num",
+            "mes",
+            "tipo_escopo",
+            "instituicao_fin",
+            "nome_metrica",
+            "valor_total",
+        )
+    )
+    saved_paths.append(handler_partitions(df_aportes_linha, "gold", "aportes_linha"))
+
+    logger.info("Building contributions bar table")
+    df_aportes_instituicao_barras = (
+        df_aportes_base
+        .groupBy("ano", "instituicao_fin")
+        .agg(
+            F.max(F.col("data_apuracao")).alias("data_apuracao"),
+            F.sum(F.col("aporte")).alias("valor_total"),
+        )
+        .select(
+            F.col("data_apuracao"),
+            F.col("ano"),
+            F.col("instituicao_fin"),
+            F.round(F.col("valor_total"), 2).alias("valor_total"),
+            F.lit("APORTES").alias("tipo_escopo"),
+            F.lit("valor_aporte_anual").alias("nome_metrica"),
+        )
+    )
+
+    df_aportes_total_barras = (
+        df_aportes_base
+        .groupBy("ano")
+        .agg(
+            F.max(F.col("data_apuracao")).alias("data_apuracao"),
+            F.sum(F.col("aporte")).alias("valor_total"),
+        )
+        .select(
+            F.col("data_apuracao"),
+            F.col("ano"),
+            F.lit("ALL").alias("instituicao_fin"),
+            F.round(F.col("valor_total"), 2).alias("valor_total"),
+            F.lit("APORTES").alias("tipo_escopo"),
+            F.lit("valor_aporte_anual").alias("nome_metrica"),
+        )
+    )
+
+    df_aportes_barras = (
+        df_aportes_instituicao_barras.unionByName(df_aportes_total_barras)
+        .select(
+            "data_apuracao",
+            "ano",
+            "instituicao_fin",
+            "valor_total",
+            "tipo_escopo",
+            "nome_metrica",
+        )
+    )
+    saved_paths.append(handler_partitions(df_aportes_barras, "gold", "aportes_barras"))
 
     latest_position_window = Window.partitionBy("instituicao_fin", "tipo", "nome").orderBy(
         F.col("data_apuracao").desc()

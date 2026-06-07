@@ -39,6 +39,7 @@ def run_silver_pipeline(
         header=True,
         multiLine=True,
     )
+    df = df.withColumn("bronze_row_id", F.monotonically_increasing_id())
 
     logger.info("Normalizing and exploding summary lines")
     df = (
@@ -92,15 +93,24 @@ def run_silver_pipeline(
 
     logger.info("Applying business normalization rules")
     df = (
-        df.withColumn(
-            "exposicao",
-            F.when(F.col("nome").isin(INTERNATIONAL_TICKERS), "internacional").otherwise("nacional"),
+        df.withColumn("tipo", F.lower(F.col("tipo")))
+        .withColumn(
+            "tipo",
+            F.when(
+                F.col("tipo").isin("fundo imobiliario", "fundo imobiliário"),
+                "stock",
+            ).otherwise(F.col("tipo")),
         )
-        .withColumn("tipo", F.lower(F.col("tipo")))
         .withColumn("instituicao_fin", F.upper(F.col("instituicao_fin")))
         .withColumn(
             "nome",
             F.when(F.col("tipo") == "stock", F.upper(F.col("nome"))).otherwise(F.lower(F.col("nome"))),
+        )
+        .withColumn(
+            "exposicao",
+            F.when(F.col("tipo") == "cripto", "internacional")
+            .when(F.col("nome").isin(INTERNATIONAL_TICKERS), "internacional")
+            .otherwise("nacional"),
         )
     )
 
@@ -108,6 +118,7 @@ def run_silver_pipeline(
     df = df.select(
         F.to_timestamp(F.col("timestamp"), "dd/MM/yyyy HH:mm:ss").alias("timestamp"),
         F.col("data_apuracao").cast("date").alias("data_apuracao"),
+        F.col("bronze_row_id").cast("int").alias("bronze_row_id"),
         F.col("ano").cast("int").alias("ano"),
         F.col("mes_num").cast("int").alias("mes_num"),
         F.col("mes").cast("string").alias("mes"),
@@ -127,36 +138,37 @@ def run_silver_pipeline(
     df_cache = handler_tickers_cache(df_price)
 
     df = (
-        df.alias("base")
+        df.alias("a")
         .join(
-            df_cache.alias("cache"),
+            df_cache.alias("b"),
             on=(
-                (F.col("base.data_apuracao") == F.col("cache.data_apuracao"))
-                & (F.col("base.nome") == F.col("cache.ticker"))
+                (F.col("a.data_apuracao") == F.col("b.data_apuracao"))
+                & (F.col("a.nome") == F.col("b.ticker"))
             ),
             how="left",
         )
         .withColumn(
             "preco_atual",
-            F.when(F.col("base.preco_atual").isNull(), F.col("cache.close")).otherwise(F.col("base.preco_atual")),
+            F.when(F.col("a.preco_atual").isNull(), F.col("b.close")).otherwise(F.col("a.preco_atual")),
         )
-        .withColumn("valor_total", F.round(F.col("preco_atual") * F.col("base.qtd"), 2))
+        .withColumn("valor_total", F.round(F.col("preco_atual") * F.col("a.qtd"), 2))
         .select(
-            F.col("base.timestamp").alias("timestamp"),
-            F.col("base.data_apuracao").alias("data_apuracao"),
-            F.col("base.ano").alias("ano"),
-            F.col("base.mes_num").alias("mes_num"),
-            F.col("base.mes").alias("mes"),
-            F.col("base.instituicao_fin").alias("instituicao_fin"),
-            F.col("base.resumo").alias("resumo"),
-            F.col("base.tipo").alias("tipo"),
-            F.col("base.nome").alias("nome"),
-            F.col("base.qtd").alias("qtd"),
-            F.col("base.preco_medio").alias("preco_medio"),
+            F.col("a.timestamp").alias("timestamp"),
+            F.col("a.data_apuracao").alias("data_apuracao"),
+            F.col("a.bronze_row_id").alias("bronze_row_id"),
+            F.col("a.ano").alias("ano"),
+            F.col("a.mes_num").alias("mes_num"),
+            F.col("a.mes").alias("mes"),
+            F.col("a.instituicao_fin").alias("instituicao_fin"),
+            F.col("a.resumo").alias("resumo"),
+            F.col("a.tipo").alias("tipo"),
+            F.col("a.nome").alias("nome"),
+            F.col("a.qtd").alias("qtd"),
+            F.col("a.preco_medio").alias("preco_medio"),
             F.col("preco_atual").cast("double").alias("preco_atual"),
             F.col("valor_total").cast("double").alias("valor_total"),
-            F.col("base.aporte").alias("aporte"),
-            F.col("base.exposicao").alias("exposicao"),
+            F.col("a.aporte").alias("aporte"),
+            F.col("a.exposicao").alias("exposicao"),
         )
     )
 
