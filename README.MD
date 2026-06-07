@@ -1,10 +1,10 @@
 # Investment Visualizer 📊
+> ### As imagens e valores abaixo foram gerados com dados **dummy**, apenas para demonstrar a visualização da aplicação. Eles não representam uma carteira real.
 
 O **Investment Visualizer** é um projeto local para acompanhar uma carteira de investimentos a partir de um CSV simples. A ideia é pegar um arquivo bruto, organizar os dados em camadas, gerar métricas prontas para visualização e abrir um dashboard em Streamlit para navegar por mês, instituição, tipo de ativo e exposição.
 
 Ele não tenta ser uma plataforma financeira completa. O foco é mais direto: transformar registros pessoais em uma visão clara de patrimônio, evolução e distribuição dos investimentos.
 
-> As imagens e valores abaixo foram gerados com dados **dummy**, apenas para demonstrar a visualização da aplicação. Eles não representam uma carteira real.
 
 ## Visual da Aplicação ✨
 
