@@ -104,6 +104,7 @@ page_1 = PAGES["page_1"]
 page_2 = PAGES["page_2"]
 page_3 = PAGES["page_3"]
 page_4 = PAGES["page_4"]
+page_aportes = PAGES["aportes"]
 
 # -------------------------------------------------------------------
 # Cada st.Page representa uma página real da aplicação.
@@ -145,6 +146,12 @@ binance_page = st.Page(
     icon=":material/currency_bitcoin:",
 )
 
+aportes_page = st.Page(
+    str(APP_DIR / page_aportes["page_path"]),
+    title="Aportes",
+    icon=":material/savings:",
+)
+
 # -------------------------------------------------------------------
 # st.navigation cria a navegação multipage.
 # -------------------------------------------------------------------
@@ -155,6 +162,7 @@ current_page = st.navigation(
         nubank_page,
         clear_page,
         binance_page,
+        aportes_page,
     ],
     position="top",
     expanded=True,
@@ -187,7 +195,7 @@ if available_months:
                     font-size: 16px;
                 "
             >
-                Mês referência:
+                Mês de referência:
             </div>
             """,
             unsafe_allow_html=True,

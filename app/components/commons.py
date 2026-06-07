@@ -1,46 +1,159 @@
 from pathlib import Path
-from typing import Mapping, Sequence, Literal
+from typing import Literal, Sequence
 import pandas as pd
 import streamlit as st
 
 ColumnKind = Literal["text", "currency", "percent", "float", "integer"]
 APP_DIR = Path(__file__).resolve().parents[1]
+INVESTMENTS_TABLE_COLUMNS = [
+    "nome",
+    "qtd",
+    "preco_medio",
+    "preco_atual",
+    "variacao_percentual",
+    "valor_total",
+]
 
-def render_total_block(val: str | float | int) -> None:
-    def _normalize_label(val: str | float | int) -> str:
-        numeric_value = float(str(val).replace(",", "."))
-        formatted_value = f"{numeric_value:,.2f}"
-        formatted_value = (
-            formatted_value
-            .replace(",", "_")
-            .replace(".", ",")
-            .replace("_", ".")
-        )
-        return f"R$ {formatted_value}"
-    
-    st.markdown('<div class="section-title" style="font-size: 24px;">Total</div>', unsafe_allow_html=True)
+def format_currency_label(val: str | float | int) -> str:
+    numeric_value = float(str(val).replace(",", "."))
+    formatted_value = f"{numeric_value:,.2f}"
+    formatted_value = (
+        formatted_value
+        .replace(",", "_")
+        .replace(".", ",")
+        .replace("_", ".")
+    )
+    return f"R$ {formatted_value}"
+
+
+def render_value_block(title: str, val: str | float | int) -> None:
     st.markdown(
-        f'<div class="big-total">{_normalize_label(val)}</div>',
+        f'<div class="section-title" style="font-size: 24px;">{title}</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        f'<div class="big-total">{format_currency_label(val)}</div>',
         unsafe_allow_html=True,
     )
 
 
+def render_total_block(val: str | float | int) -> None:
+    render_value_block("Total", val)
+
+
+def get_dataframe_height(df: pd.DataFrame) -> int:
+    return 42 + (len(df) * 35)
+
+
+def format_compact_number(val: str | float | int, *, max_decimals: int = 8) -> str:
+    if pd.isna(val):
+        return ""
+
+    numeric_value = float(str(val).replace(",", "."))
+    abs_value = abs(numeric_value)
+
+    if abs_value >= 1_000_000_000:
+        return f"{numeric_value / 1_000_000_000:.1f}B"
+
+    if abs_value >= 1_000_000:
+        return f"{numeric_value / 1_000_000:.1f}M"
+
+    if abs_value >= 1_000:
+        return f"{numeric_value / 1_000:.1f}K"
+
+    if abs_value == 0:
+        return "0"
+
+    if abs_value >= 1:
+        formatted_value = f"{numeric_value:.2f}"
+    else:
+        formatted_value = f"{numeric_value:.{max_decimals}f}"
+
+    return formatted_value.rstrip("0").rstrip(".")
+
+
+def format_table_currency(val: str | float | int) -> str:
+    if pd.isna(val):
+        return ""
+
+    numeric_value = float(str(val).replace(",", "."))
+
+    if numeric_value == 0:
+        return "R$ 0.00"
+
+    if abs(numeric_value) >= 1_000:
+        return f"R$ {format_compact_number(numeric_value)}"
+
+    if abs(numeric_value) >= 1:
+        return f"R$ {numeric_value:.2f}"
+
+    return f"R$ {format_compact_number(numeric_value)}"
+
+
+def format_table_percent(val: str | float | int) -> str:
+    if pd.isna(val):
+        return ""
+
+    return f"{float(val):.2f}%"
+
+
+def build_investments_table_display(df: pd.DataFrame) -> pd.DataFrame:
+    display_df = df[INVESTMENTS_TABLE_COLUMNS].copy()
+    display_df["qtd"] = display_df["qtd"].map(format_compact_number)
+    display_df["preco_medio"] = display_df["preco_medio"].map(format_table_currency)
+    display_df["preco_atual"] = display_df["preco_atual"].map(format_table_currency)
+    display_df["variacao_percentual"] = display_df["variacao_percentual"].map(format_table_percent)
+    display_df["valor_total"] = display_df["valor_total"].map(format_table_currency)
+
+    return display_df
+
+
+def build_aportes_table_display(df: pd.DataFrame) -> pd.DataFrame:
+    display_df = df.copy()
+
+    for column in display_df.columns:
+        if column == "instituicao_fin":
+            continue
+
+        display_df[column] = display_df[column].map(format_table_currency)
+
+    return display_df
+
+
+def build_investments_table_column_config() -> dict:
+    return {
+        "nome": st.column_config.TextColumn("Investimento", width="medium"),
+        "qtd": st.column_config.TextColumn("Qtd", width="small"),
+        "preco_medio": st.column_config.TextColumn("Preço Médio", width="small"),
+        "preco_atual": st.column_config.TextColumn("Preço Atual", width="small"),
+        "variacao_percentual": st.column_config.TextColumn("Var. %", width="small"),
+        "valor_total": st.column_config.TextColumn("Valor Total", width="small"),
+    }
+
+
+def build_aportes_table_column_config(columns: Sequence[str]) -> dict:
+    column_config = {
+        "instituicao_fin": st.column_config.TextColumn("Instituição", width="medium"),
+    }
+
+    for column in columns:
+        if column == "instituicao_fin":
+            continue
+
+        column_label = "Total" if column == "total" else str(column)
+        column_config[column] = st.column_config.TextColumn(
+            column_label,
+            width="small",
+        )
+
+    return column_config
+
+
 
 def render_navigation_button(val: str | float | int, page: dict) -> None:
-    def _normalize_label(val: str | float | int) -> str:
-        numeric_value = float(str(val).replace(",", "."))
-        formatted_value = f"{numeric_value:,.2f}"
-        formatted_value = (
-            formatted_value
-            .replace(",", "_")
-            .replace(".", ",")
-            .replace("_", ".")
-        )
-        return f"{page['title']} - R$ {formatted_value}"
-
     button_key = f"nav_button_{page['scope_value'].lower()}"
 
-    if st.button(_normalize_label(val), key=button_key, width='stretch'):
+    if st.button(f"{page['title']} - {format_currency_label(val)}", key=button_key, width='stretch'):
         st.switch_page(str(APP_DIR / page['page_path']))
 
 def inject_page_css() -> None:

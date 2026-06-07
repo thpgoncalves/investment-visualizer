@@ -25,6 +25,23 @@ def get_chart_colors(count: int) -> list[str]:
     return [get_chart_color(index) for index in range(count)]
 
 
+def format_compact_number(value: float | int) -> str:
+    numeric_value = float(value)
+    abs_value = abs(numeric_value)
+
+    if abs_value >= 1_000_000:
+        return f"{numeric_value / 1_000_000:.1f}M"
+
+    if abs_value >= 1_000:
+        return f"{numeric_value / 1_000:.1f}K"
+
+    return f"{numeric_value:,.0f}"
+
+
+def format_compact_currency(value: float | int) -> str:
+    return f"R${format_compact_number(value)}"
+
+
 # -------------------------------------------------------------------
 # Esta função existe para validar se o DataFrame recebido possui
 # as colunas mínimas necessárias para o gráfico.
@@ -184,7 +201,7 @@ def build_line_chart(
                     y=series_df[y_col],
                     mode="lines+markers+text",
                     name=str(series_name),
-                    text=[""] * (len(series_df) - 1) + [f"R${series_df[y_col].iloc[-1]:,.0f}"],
+                    text=[""] * (len(series_df) - 1) + [format_compact_currency(series_df[y_col].iloc[-1])],
                     textposition="top right",
                     textfont=dict(size=11),
                     line=dict(color=color),
@@ -197,6 +214,7 @@ def build_line_chart(
             layout["yaxis"] = {
                 **layout["yaxis"],
                 "range": [0, y_max + y_padding],
+                "tickformat": "~s",
             }
             figure.update_layout(**layout)
 
@@ -260,7 +278,7 @@ def build_grouped_bar_chart(
                 x=series_df[x_col],
                 y=series_df[y_col],
                 name=str(series_name),
-                text=[f"R${value:,.0f}" for value in series_df[y_col]],
+                text=[format_compact_currency(value) for value in series_df[y_col]],
                 textposition="outside",
                 textfont=dict(size=10),
                 cliponaxis=False,
@@ -282,9 +300,15 @@ def build_grouped_bar_chart(
                 )
             )
 
-    figure.update_layout(
-    **build_base_layout(title),
-    height=320
-    )
+    layout = build_base_layout(title)
+    layout["height"] = 320
+
+    if percentual == False:
+        layout["yaxis"] = {
+            **layout["yaxis"],
+            "tickformat": "~s",
+        }
+
+    figure.update_layout(**layout)
 
     return figure

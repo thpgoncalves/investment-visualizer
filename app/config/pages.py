@@ -5,6 +5,12 @@ PAGES = {
         "scope_type": "HOME",
         "scope_value": "ALL",
     },
+    "aportes": {
+        "title": "Aportes",
+        "page_path": "pages/aportes.py",
+        "scope_type": "APORTES",
+        "scope_value": "ALL",
+    },
     "page_1": {
         "title": "XP",
         "page_path": "pages/page_1.py",

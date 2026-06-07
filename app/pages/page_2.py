@@ -7,7 +7,13 @@ from app.components.charts import (
     build_line_chart,
     build_pie_chart,
 )
-from app.components.commons import render_total_block, inject_page_css
+from app.components.commons import (
+    build_investments_table_display,
+    build_investments_table_column_config,
+    get_dataframe_height,
+    render_total_block,
+    inject_page_css,
+)
 
 
 inject_page_css()
@@ -81,7 +87,13 @@ with st.container(border=True):
     with left_col:
         st.markdown('<div class="section-title" style="font-size: 24px;">Investimentos</div>', unsafe_allow_html=True)
 
-        st.dataframe(df_investimentos_filtrado[['nome', 'qtd', 'preco_medio', 'preco_atual', 'variacao_percentual', 'valor_total',]], hide_index=True)
+        st.dataframe(
+            build_investments_table_display(df_investimentos_filtrado),
+            hide_index=True,
+            width='stretch',
+            height=get_dataframe_height(df_investimentos_filtrado),
+            column_config=build_investments_table_column_config(),
+        )
 
     with center_col:
         with st.container(border=False, key="institution-total-block"):
@@ -106,7 +118,7 @@ with st.container(border=True):
             st.plotly_chart(
                 build_pie_chart(
                     df=df_pizza_expo_filtrado,
-                    title="Distribuição Investimentos (Exposicao)",
+                    title="Distribuição Investimentos (Exposição)",
                     label_col='exposicao',
                     value_col='valor_total'
                 ),

@@ -124,7 +124,7 @@ with st.container(border=True):
             st.plotly_chart(
                 build_pie_chart(
                     df=df_pizza_expo,
-                    title="Distribuição Investimentos (Exposicao)",
+                    title="Distribuição Investimentos (Exposição)",
                     label_col='exposicao',
                     value_col='valor_total'
                 ),
