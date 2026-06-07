@@ -10,7 +10,7 @@ Ele não tenta ser uma plataforma financeira completa. O foco é mais direto: tr
 
 ### Navegação e mês de referência 🧭
 
-A parte superior concentra a navegação principal do app e o seletor de mês. Esse seletor permite fazer um "time travel" pelos snapshots já gerados: ao trocar o mês de referência, a Home e as páginas de instituição passam a ler os arquivos Gold daquela competência.
+A parte superior concentra a navegação principal do app e o seletor de mês. Esse seletor permite fazer um "time travel" pelos snapshots já gerados: ao trocar o mês de referência, a Home, as páginas de instituição e a página de aportes passam a ler os arquivos Gold daquela competência.
 
 ![Menu e seleção de mês](docs/images/01-menu-mes-referencia.png)
 
@@ -38,6 +38,12 @@ As páginas de instituição seguem a mesma lógica visual da Home, mas com esco
 
 ![Página de instituição](docs/images/05-pagina-instituicao.png)
 
+### Página de aportes 💸
+
+A página de aportes acompanha o dinheiro novo colocado na carteira, consolidado por instituição financeira. A primeira área traz a matriz anual de aportes, com cada instituição nas linhas, anos e total nas colunas, além da média mensal e do total aportado. A leitura é propositalmente mais agregada que a carteira de investimentos: o aporte nasce no nível da instituição, não no nível de cada ativo.
+
+![Página de aportes](docs/images/06-pagina-aportes.png)
+
 ## O Que Dá Para Ver No App 🔎
 
 | Área | O que mostra |
@@ -48,6 +54,7 @@ As páginas de instituição seguem a mesma lógica visual da Home, mas com esco
 | 📈 Evolução mensal | Crescimento do patrimônio mês a mês. |
 | 📊 Evolução anual | Comparação por ano, já consolidada para evitar múltiplas barras no mesmo ano. |
 | 🔎 Páginas por instituição | Visão filtrada para XP, Nubank, Clear, Binance e outras instituições configuradas. |
+| 💸 Aportes | Matriz anual por instituição, média mensal, total aportado e gráficos de evolução dos aportes. |
 
 ## Como A Informação Passa Pelo Projeto 🔄
 
@@ -223,6 +230,8 @@ data/gold/YYYYMM/YYYYMM_gold_<nome_tabela>_snapshot.csv
 | `instituicao_linha` | Evolução mensal por instituição e por ativo. |
 | `instituicao_label` | Tabela detalhada de posições da página de instituição. |
 | `instituicao_barras` | Evolução anual por instituição e ativo, usando um snapshot por ano. |
+| `aportes_linha` | Evolução mensal dos aportes por instituição e consolidado geral. |
+| `aportes_barras` | Evolução anual dos aportes por instituição e consolidado geral. |
 
 Além de agregar os valores, a Gold calcula variações percentuais usando o valor anterior dentro de cada grupo. Isso é usado nos gráficos de evolução mensal, evolução anual e nas tabelas de posição.
 
@@ -272,6 +281,7 @@ Ele lista os meses disponíveis em `data/gold`, mantém o mês selecionado em `s
 | --- | --- |
 | `home.py` | Visão consolidada da carteira. |
 | `page_1.py` a `page_4.py` | Páginas filtradas por instituição. |
+| `aportes.py` | Visão consolidada dos aportes por instituição. |
 
 ### `app/components`
 

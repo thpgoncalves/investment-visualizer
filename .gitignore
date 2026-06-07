@@ -210,6 +210,7 @@ __marimo__/
 # Keep only dummy/sample files in version control. Personal inputs and newly
 # generated pipeline outputs should stay local.
 preenchimento.txt
+tabela.excalidraw
 
 data/bronze/*.csv
 !data/bronze/dummy.csv
