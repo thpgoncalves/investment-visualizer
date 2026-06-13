@@ -207,22 +207,11 @@ marimo/_lsp/
 __marimo__/
 
 # Investment Visualizer local data
-# Keep only dummy/sample files in version control. Personal inputs and newly
-# generated pipeline outputs should stay local.
+# Keep only the dummy input in version control. Personal inputs, snapshots,
+# caches, and all generated pipeline outputs must stay local.
 preenchimento.txt
 tabela.excalidraw
 
-data/bronze/*.csv
+data/**
+!data/bronze/
 !data/bronze/dummy.csv
-
-data/silver/snapshots/*
-!data/silver/snapshots/202605_silver_snapshot.csv
-
-data/silver/tickers_cache/*
-!data/silver/tickers_cache/tickers_cache.csv
-!data/silver/tickers_cache/tickers_cache.parquet
-
-data/gold/**
-!data/gold/
-!data/gold/202605/
-!data/gold/202605/*.csv

@@ -171,22 +171,40 @@ def format_table_currency(val: str | float | int) -> str:
     return f"R$ {format_compact_number(numeric_value)}"
 
 
-def format_table_percent(val: str | float | int) -> str:
-    if pd.isna(val):
+def style_variation_cell(val: float | int) -> str:
+    if pd.isna(val) or val == 0:
         return ""
 
-    return f"{float(val):.2f}%"
+    if val > 0:
+        return (
+            "color: #166534; "
+            "background-color: #dcfce7; "
+            "font-weight: 600;"
+        )
+
+    return (
+        "color: #991b1b; "
+        "background-color: #fee2e2; "
+        "font-weight: 600;"
+    )
 
 
-def build_investments_table_display(df: pd.DataFrame) -> pd.DataFrame:
+def build_investments_table_display(df: pd.DataFrame):
     display_df = df[INVESTMENTS_TABLE_COLUMNS].copy()
     display_df["qtd"] = display_df["qtd"].map(format_compact_number)
     display_df["preco_medio"] = display_df["preco_medio"].map(format_table_currency)
     display_df["preco_atual"] = display_df["preco_atual"].map(format_table_currency)
-    display_df["variacao_percentual"] = display_df["variacao_percentual"].map(format_table_percent)
+    display_df["variacao_percentual"] = pd.to_numeric(
+        display_df["variacao_percentual"],
+        errors="coerce",
+    )
     display_df["valor_total"] = display_df["valor_total"].map(format_table_currency)
 
-    return display_df
+    return (
+        display_df.style
+        .map(lambda _: "font-weight: 600;", subset=["nome", "valor_total"])
+        .map(style_variation_cell, subset=["variacao_percentual"])
+    )
 
 
 def build_aportes_table_display(df: pd.DataFrame) -> pd.DataFrame:
@@ -207,7 +225,11 @@ def build_investments_table_column_config() -> dict:
         "qtd": st.column_config.TextColumn("Qtd", width="small"),
         "preco_medio": st.column_config.TextColumn("Preço Médio", width="small"),
         "preco_atual": st.column_config.TextColumn("Preço Atual", width="small"),
-        "variacao_percentual": st.column_config.TextColumn("Var. %", width="small"),
+        "variacao_percentual": st.column_config.NumberColumn(
+            "Var. %",
+            width="small",
+            format="%.2f%%",
+        ),
         "valor_total": st.column_config.TextColumn("Valor Total", width="small"),
     }
 
