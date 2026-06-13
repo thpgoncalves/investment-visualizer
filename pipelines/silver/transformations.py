@@ -4,8 +4,9 @@ import logging
 
 from pyspark.sql import functions as F
 
-from pipelines.shared.partition_handler import handler_partitions
 from infra.spark_utils import normalize_ptbr_number
+from pipelines.shared.logging_utils import log_section_separator
+from pipelines.shared.partition_handler import handler_partitions
 from pipelines.silver.tickers import get_tickers_price, handler_tickers_cache
 
 
@@ -25,30 +26,282 @@ INTERNATIONAL_TICKERS = [
 ]
 
 
+def _normalize_and_validate_summary_lines(df):
+    df_exploded = (
+        df.withColumn("resumo", F.regexp_replace(F.col("resumo"), r"\r\n|\r", "\n"))
+        .withColumn("_resumo_lines", F.split(F.col("resumo"), "\n"))
+        .select(
+            "*",
+            F.posexplode(F.col("_resumo_lines")).alias("_resumo_line_index", "_resumo_line"),
+        )
+        .drop("resumo", "_resumo_lines")
+        .withColumnRenamed("_resumo_line", "resumo")
+        .withColumn("_resumo_line_number", F.col("_resumo_line_index") + F.lit(1))
+        .drop("_resumo_line_index")
+    )
+
+    exploded_count = df_exploded.count()
+    empty_line_condition = F.length(F.trim(F.col("resumo"))) == 0
+    empty_line_count = df_exploded.filter(empty_line_condition).count()
+
+    logger.info(
+        "🥉 BRONZE | Summary lines | exploded=%s | empty_discarded=%s",
+        exploded_count,
+        empty_line_count,
+    )
+
+    df_non_empty = df_exploded.filter(~empty_line_condition)
+    parts = F.split(F.col("resumo"), r"\|", -1)
+
+    df_validated = (
+        df_non_empty
+        .withColumn("_summary_field_count", F.size(parts))
+        .withColumn(
+            "_missing_required_fields",
+            F.array_compact(
+                F.array(
+                    F.when(F.length(F.trim(parts.getItem(0))) == 0, F.lit("tipo")),
+                    F.when(F.length(F.trim(parts.getItem(1))) == 0, F.lit("nome")),
+                    F.when(F.length(F.trim(parts.getItem(2))) == 0, F.lit("qtd")),
+                    F.when(F.length(F.trim(parts.getItem(3))) == 0, F.lit("preco_medio")),
+                )
+            ),
+        )
+    )
+
+    malformed_condition = (
+        (F.col("_summary_field_count") != 5)
+        | (F.size(F.col("_missing_required_fields")) > 0)
+    )
+    malformed_df = df_validated.filter(malformed_condition)
+    malformed_count = malformed_df.count()
+
+    if malformed_count:
+        malformed_samples = [
+            row.asDict(recursive=True)
+            for row in (
+                malformed_df
+                .select(
+                    "bronze_row_id",
+                    "timestamp",
+                    "data_apuracao",
+                    "instituicao_fin",
+                    "_resumo_line_number",
+                    "resumo",
+                    "_summary_field_count",
+                    "_missing_required_fields",
+                )
+                .limit(10)
+                .collect()
+            )
+        ]
+        logger.error(
+            "🥉 BRONZE | Malformed summary lines | count=%s | samples=%s",
+            malformed_count,
+            malformed_samples,
+        )
+        raise ValueError(
+            "Malformed summary lines detected. "
+            f"Expected exactly 5 fields and non-empty tipo, nome, qtd and preco_medio; "
+            f"found {malformed_count} invalid line(s)."
+        )
+
+    valid_count = df_validated.count()
+    logger.info("🥉 BRONZE | Summary validation passed | valid_lines=%s", valid_count)
+
+    return df_validated.drop(
+        "_resumo_line_number",
+        "_summary_field_count",
+        "_missing_required_fields",
+    )
+
+
+def _enrich_with_ticker_prices(df, df_cache):
+    df_enriched = (
+        df.alias("a")
+        .join(
+            df_cache.alias("b"),
+            on=(
+                (F.col("a.nome") == F.col("b.ticker"))
+                & (F.col("a.data_apuracao") == F.col("b.data_apuracao"))
+            ),
+            how="left",
+        )
+        .select(
+            "a.*",
+            F.col("b.close").alias("_cache_close"),
+        )
+        .withColumn("preco_atual", F.coalesce("preco_atual", "_cache_close"))
+        .drop("_cache_close")
+    )
+
+    missing_price_df = df_enriched.filter(
+        (F.col("tipo") == "stock") & F.col("preco_atual").isNull()
+    )
+
+    if missing_price_df.limit(1).count():
+        latest_cache_date = df_cache.agg(F.max("data_apuracao").alias("date")).first()["date"]
+        fallback_samples = [
+            row.asDict(recursive=True)
+            for row in (
+                missing_price_df
+                .select("instituicao_fin", "nome", "data_apuracao")
+                .limit(20)
+                .collect()
+            )
+        ]
+        logger.warning(
+            "📈 PRICE | Same-day price not found | fallback_date=%s | positions=%s",
+            latest_cache_date,
+            fallback_samples,
+        )
+
+        fallback_cache = (
+            df_cache
+            .filter(F.col("data_apuracao") == F.lit(latest_cache_date))
+            .select(
+                "ticker",
+                F.col("close").alias("_fallback_close"),
+            )
+        )
+
+        df_enriched = (
+            df_enriched.alias("a")
+            .join(
+                fallback_cache.alias("b"),
+                on=F.col("a.nome") == F.col("b.ticker"),
+                how="left",
+            )
+            .select(
+                "a.*",
+                F.col("b._fallback_close"),
+            )
+            .withColumn("preco_atual", F.coalesce("preco_atual", "_fallback_close"))
+            .drop("_fallback_close")
+        )
+
+    return (
+        df_enriched
+        .withColumn("valor_total", F.round(F.col("preco_atual") * F.col("qtd"), 2))
+        .select(
+            F.col("timestamp"),
+            F.col("data_apuracao"),
+            F.col("bronze_row_id"),
+            F.col("ano"),
+            F.col("mes_num"),
+            F.col("mes"),
+            F.col("instituicao_fin"),
+            F.col("resumo"),
+            F.col("tipo"),
+            F.col("nome"),
+            F.col("qtd"),
+            F.col("preco_medio"),
+            F.col("preco_atual").cast("double").alias("preco_atual"),
+            F.col("valor_total").cast("double").alias("valor_total"),
+            F.col("aporte"),
+            F.col("exposicao"),
+        )
+    )
+
+
+def _validate_silver_output(df) -> None:
+    stats = (
+        df.agg(
+            F.count(F.lit(1)).alias("rows"),
+            F.countDistinct("instituicao_fin").alias("institutions"),
+            F.min("data_apuracao").alias("min_date"),
+            F.max("data_apuracao").alias("max_date"),
+            F.sum(F.when(F.col("preco_atual").isNull(), 1).otherwise(0)).alias("missing_price"),
+            F.sum(F.when(F.col("valor_total").isNull(), 1).otherwise(0)).alias("missing_total"),
+        )
+        .first()
+    )
+
+    logger.info(
+        "🥈 SILVER | Dataset summary | rows=%s | institutions=%s | period=%s to %s | "
+        "missing_price=%s | missing_total=%s",
+        stats["rows"],
+        stats["institutions"],
+        stats["min_date"],
+        stats["max_date"],
+        stats["missing_price"],
+        stats["missing_total"],
+    )
+
+    if stats["rows"] == 0:
+        logger.error("🥈 SILVER | Validation failed | reason=empty_dataset")
+        raise ValueError("Silver validation failed: the final dataset is empty.")
+
+    if stats["missing_price"] or stats["missing_total"]:
+        invalid_samples = [
+            row.asDict(recursive=True)
+            for row in (
+                df
+                .filter(F.col("preco_atual").isNull() | F.col("valor_total").isNull())
+                .select(
+                    "bronze_row_id",
+                    "data_apuracao",
+                    "instituicao_fin",
+                    "tipo",
+                    "nome",
+                    "qtd",
+                    "preco_atual",
+                    "valor_total",
+                )
+                .limit(20)
+                .collect()
+            )
+        ]
+        logger.error(
+            "🥈 SILVER | Validation failed | missing_price=%s | missing_total=%s | samples=%s",
+            stats["missing_price"],
+            stats["missing_total"],
+            invalid_samples,
+        )
+        raise ValueError(
+            "Silver validation failed: positions with missing preco_atual or valor_total were found. "
+            f"Invalid positions: {invalid_samples}"
+        )
+
+    logger.info("🥈 SILVER | Validation passed")
+
+
 def run_silver_pipeline(
     spark,
     *,
     input_path: str,
 ) -> str:
-    logger.info("Starting silver pipeline")
+    logger.info("🥈 SILVER | Pipeline started")
 
-    logger.info("Reading raw CSV file")
+    log_section_separator(logger)
+    logger.info("🥉 BRONZE | Reading CSV | path=%s", input_path)
     df = spark.read.csv(
         path=input_path,
         sep=",",
         header=True,
         multiLine=True,
     )
+    bronze_stats = (
+        df.agg(
+            F.count(F.lit(1)).alias("rows"),
+            F.countDistinct("instituicao_fin").alias("institutions"),
+        )
+        .first()
+    )
+    logger.info(
+        "🥉 BRONZE | Input summary | rows=%s | institutions=%s | columns=%s",
+        bronze_stats["rows"],
+        bronze_stats["institutions"],
+        df.columns,
+    )
     df = df.withColumn("bronze_row_id", F.monotonically_increasing_id())
 
-    logger.info("Normalizing and exploding summary lines")
-    df = (
-        df.withColumn("resumo", F.regexp_replace(F.col("resumo"), r"\r\n|\r", "\n"))
-        .withColumn("resumo", F.split(F.col("resumo"), "\n"))
-        .withColumn("resumo", F.explode(F.col("resumo")))
-    )
+    logger.info("🥉 BRONZE | Normalizing and validating summary lines")
+    df = _normalize_and_validate_summary_lines(df)
 
-    logger.info("Splitting summary fields into columns")
+    log_section_separator(logger)
+    logger.info("🥈 SILVER | Transformations started")
+    logger.info("🥈 SILVER | Splitting summary fields")
     parts = F.split(F.col("resumo"), r"\|")
 
     df = (
@@ -59,7 +312,7 @@ def run_silver_pipeline(
         .withColumn("preco_atual", F.trim(parts.getItem(4)))
     )
 
-    logger.info("Normalizing pt-BR numeric/text fields")
+    logger.info("🥈 SILVER | Normalizing pt-BR values")
     df = (
         df.withColumn("tipo", normalize_ptbr_number(F.col("tipo")))
         .withColumn("nome", normalize_ptbr_number(F.col("nome")))
@@ -68,7 +321,7 @@ def run_silver_pipeline(
         .withColumn("preco_atual", normalize_ptbr_number(F.col("preco_atual")))
     )
 
-    logger.info("Creating date reference columns")
+    logger.info("🥈 SILVER | Creating date reference columns")
     month_mapping = F.create_map(
         F.lit(1), F.lit("Jan"),
         F.lit(2), F.lit("Fev"),
@@ -91,7 +344,7 @@ def run_silver_pipeline(
         .withColumn("mes", month_mapping[F.col("mes_num")])
     )
 
-    logger.info("Applying business normalization rules")
+    logger.info("🥈 SILVER | Applying business rules")
     df = (
         df.withColumn("tipo", F.lower(F.col("tipo")))
         .withColumn(
@@ -114,7 +367,7 @@ def run_silver_pipeline(
         )
     )
 
-    logger.info("Casting final silver schema")
+    logger.info("🥈 SILVER | Casting final schema")
     df = df.select(
         F.to_timestamp(F.col("timestamp"), "dd/MM/yyyy HH:mm:ss").alias("timestamp"),
         F.col("data_apuracao").cast("date").alias("data_apuracao"),
@@ -133,48 +386,27 @@ def run_silver_pipeline(
         F.col("exposicao").cast("string").alias("exposicao"),
     )
 
-    logger.info("Enriching data with ticker prices")
+    log_section_separator(logger)
+    logger.info("📈 YAHOO | Fetching ticker prices")
     df_price = get_tickers_price(df)
+
+    log_section_separator(logger)
+    logger.info("💾 CACHE | Updating ticker prices")
     df_cache = handler_tickers_cache(df_price)
 
-    df = (
-        df.alias("a")
-        .join(
-            df_cache.alias("b"),
-            on=(
-                (F.col("a.data_apuracao") == F.col("b.data_apuracao"))
-                & (F.col("a.nome") == F.col("b.ticker"))
-            ),
-            how="left",
-        )
-        .withColumn(
-            "preco_atual",
-            F.when(F.col("a.preco_atual").isNull(), F.col("b.close")).otherwise(F.col("a.preco_atual")),
-        )
-        .withColumn("valor_total", F.round(F.col("preco_atual") * F.col("a.qtd"), 2))
-        .select(
-            F.col("a.timestamp").alias("timestamp"),
-            F.col("a.data_apuracao").alias("data_apuracao"),
-            F.col("a.bronze_row_id").alias("bronze_row_id"),
-            F.col("a.ano").alias("ano"),
-            F.col("a.mes_num").alias("mes_num"),
-            F.col("a.mes").alias("mes"),
-            F.col("a.instituicao_fin").alias("instituicao_fin"),
-            F.col("a.resumo").alias("resumo"),
-            F.col("a.tipo").alias("tipo"),
-            F.col("a.nome").alias("nome"),
-            F.col("a.qtd").alias("qtd"),
-            F.col("a.preco_medio").alias("preco_medio"),
-            F.col("preco_atual").cast("double").alias("preco_atual"),
-            F.col("valor_total").cast("double").alias("valor_total"),
-            F.col("a.aporte").alias("aporte"),
-            F.col("a.exposicao").alias("exposicao"),
-        )
-    )
+    log_section_separator(logger)
+    logger.info("🥈 SILVER | Merging ticker prices")
+    df = _enrich_with_ticker_prices(df, df_cache)
 
-    logger.info("Writing silver dataset")
+    log_section_separator(logger)
+    logger.info("🥈 SILVER | Validating final dataset")
+    _validate_silver_output(df)
+
+    log_section_separator(logger)
+    logger.info("🥈 SILVER | Writing snapshot")
     silver_snapshot_path = handler_partitions(df, "silver")
-    logger.info("Silver snapshot saved at %s", silver_snapshot_path)
+    logger.info("🥈 SILVER | Snapshot ready | path=%s", silver_snapshot_path)
 
-    logger.info("Silver pipeline finished successfully")
+    log_section_separator(logger)
+    logger.info("🥈 SILVER | Pipeline finished")
     return silver_snapshot_path

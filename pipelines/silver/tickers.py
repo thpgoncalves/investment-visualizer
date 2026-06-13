@@ -64,13 +64,28 @@ def get_tickers_price(df: DataFrame, lookback_days: int = 7) -> DataFrame:
     yahoo_map = {_to_yahoo_ticker(t): t for t in tickers_list}
     yahoo_ticker_list = list(yahoo_map.keys())
 
+    requested_tickers = [
+        {
+            "ticker": yahoo_map[yahoo_t],
+            "yahoo_ticker": yahoo_t,
+        }
+        for yahoo_t in yahoo_ticker_list
+    ]
+    logger.info(
+        "📈 YAHOO | Lookup started | period=%s to %s | requested=%s",
+        start,
+        cutoff,
+        requested_tickers,
+    )
+
     data = yf.download(
         tickers=yahoo_ticker_list,
         start=start,
         end=cutoff,
         interval="1d",
         auto_adjust=True,
-        threads=False
+        threads=False,
+        progress=False,
     )
 
     extracted_at = datetime.now()
@@ -96,8 +111,7 @@ def get_tickers_price(df: DataFrame, lookback_days: int = 7) -> DataFrame:
             df_close["extracted_at"] = extracted_at
 
             return df_close[["data_preco", "ticker", "close", "extracted_at"]]
-        except Exception as e:
-            print(f"Erro ao processar {yahoo_t}: {e}")
+        except Exception:
             return None
         
     dfs = []
@@ -108,6 +122,20 @@ def get_tickers_price(df: DataFrame, lookback_days: int = 7) -> DataFrame:
             dfs.append(df_ticker)
 
     if not dfs:
+        missing_tickers = [
+            {
+                "ticker": yahoo_map[yahoo_t],
+                "yahoo_ticker": yahoo_t,
+            }
+            for yahoo_t in yahoo_ticker_list
+        ]
+        logger.warning(
+            "📈 YAHOO | No valid price returned | period=%s to %s | "
+            "review_tickers=%s",
+            start,
+            cutoff,
+            missing_tickers,
+        )
         return spark.createDataFrame([], schema)
 
     df_concat = pd.concat(dfs, ignore_index=True)
@@ -158,6 +186,41 @@ def get_tickers_price(df: DataFrame, lookback_days: int = 7) -> DataFrame:
     
     df_final = build_latest_prices_spark_df(df_concat, spark, schema)
 
+    returned_prices = [
+        row.asDict(recursive=True)
+        for row in (
+            df_final
+            .select("ticker", "data_preco", "close")
+            .orderBy("ticker")
+            .collect()
+        )
+    ]
+    returned_tickers = {price["ticker"] for price in returned_prices}
+
+    logger.info(
+        "📈 YAHOO | Lookup completed | returned=%s | prices=%s",
+        len(returned_prices),
+        returned_prices,
+    )
+
+    missing_tickers = [
+        {
+            "ticker": yahoo_map[yahoo_t],
+            "yahoo_ticker": yahoo_t,
+        }
+        for yahoo_t in yahoo_ticker_list
+        if yahoo_map[yahoo_t] not in returned_tickers
+    ]
+
+    if missing_tickers:
+        logger.warning(
+            "📈 YAHOO | No valid price returned for some tickers | "
+            "period=%s to %s | review_tickers=%s",
+            start,
+            cutoff,
+            missing_tickers,
+        )
+
     return df_final
 
 def handler_tickers_cache(df_prices: DataFrame, cache_dir: str | None = None) -> DataFrame:
@@ -184,17 +247,19 @@ def handler_tickers_cache(df_prices: DataFrame, cache_dir: str | None = None) ->
 
     final_dir.parent.mkdir(parents=True, exist_ok=True)
 
-    logger.info("Updating ticker cache at %s", final_dir)
+    logger.info("💾 CACHE | Update started | path=%s", final_dir)
 
     df_new = df_prices.toPandas().copy()
 
     df_new["data_preco"] = pd.to_datetime(df_new["data_preco"], errors="coerce").dt.date
     df_new["extracted_at"] = pd.to_datetime(df_new["extracted_at"], errors="coerce")
     df_new["close"] = pd.to_numeric(df_new["close"], errors="coerce")
+    previous_rows = 0
 
     if final_parquet_file.exists():
-        logger.info("Existing cache found. Merging with new batch.")
+        logger.info("💾 CACHE | Existing cache found | action=merge")
         df_cache = pd.read_parquet(final_parquet_file)
+        previous_rows = len(df_cache)
 
         df_cache["data_preco"] = pd.to_datetime(df_cache["data_preco"], errors="coerce").dt.date
         df_cache["extracted_at"] = pd.to_datetime(df_cache["extracted_at"], errors="coerce")
@@ -203,7 +268,7 @@ def handler_tickers_cache(df_prices: DataFrame, cache_dir: str | None = None) ->
         df_all = pd.concat([df_cache, df_new], ignore_index=True)
 
     else:
-        logger.info("No existing cache found. Creating a new one.")
+        logger.info("💾 CACHE | Cache not found | action=create")
         df_all = df_new
 
     # logica de dedup e escrita do parquet feito com pandas para evitar necessidade de configuracao de ambiente hadoop
@@ -214,12 +279,19 @@ def handler_tickers_cache(df_prices: DataFrame, cache_dir: str | None = None) ->
         .reset_index(drop=True)
     )
 
+    logger.info(
+        "💾 CACHE | Summary | previous_rows=%s | new_rows=%s | final_rows=%s",
+        previous_rows,
+        len(df_new),
+        len(df_dedup),
+    )
+
     if temp_dir.exists():
         shutil.rmtree(temp_dir)
 
     temp_dir.mkdir(parents=True, exist_ok=True)
     
-    logger.info("Writing temporary cache to %s", temp_parquet_file)
+    logger.info("💾 CACHE | Writing files | parquet=%s | csv=%s", temp_parquet_file, temp_csv_file)
     df_dedup.to_parquet(temp_parquet_file, index=False)
     df_dedup.to_csv(temp_csv_file, index=False)
 
@@ -228,6 +300,6 @@ def handler_tickers_cache(df_prices: DataFrame, cache_dir: str | None = None) ->
 
     shutil.move(str(temp_dir), str(final_dir))
 
-    logger.info("Ticker cache updated successfully at %s", final_dir)
+    logger.info("💾 CACHE | Update completed | path=%s", final_dir)
 
     return spark.createDataFrame(df_dedup)
