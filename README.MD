@@ -5,6 +5,28 @@ O **Investment Visualizer** é um projeto local para acompanhar uma carteira de 
 
 Ele não tenta ser uma plataforma financeira completa. O foco é mais direto: transformar registros pessoais em uma visão clara de patrimônio, evolução e distribuição dos investimentos.
 
+## Fluxo De Uso Local 🚀
+
+1. Atualize `data/bronze/economias.csv`.
+2. Rode a pipeline:
+
+```powershell
+python -m pipelines.run_pipeline
+```
+
+3. Abra o dashboard:
+
+```powershell
+iv-app
+```
+
+Ou faça tudo em sequência:
+
+```powershell
+iv-run
+```
+
+Durante a execução, o terminal organiza os logs por Bronze, Silver, Yahoo Finance, cache, Gold e Spark. As mensagens mostram contagens, datas, tickers consultados, snapshots gerados e amostras de inconsistências para facilitar o diagnóstico.
 
 ## Visual da Aplicação ✨
 
@@ -165,6 +187,8 @@ Cada linha dentro de `resumo` segue este formato:
 | 4 | preço médio | `125,00` |
 | 5 | preço atual | vazio para ações/tickers; preenchido quando o ativo não passa pela busca automática |
 
+Linhas completamente vazias dentro de `resumo` são descartadas. Já uma linha preenchida incorretamente interrompe a pipeline: cada investimento deve possuir exatamente os cinco campos esperados, com `tipo`, `nome`, `quantidade` e `preço médio` informados.
+
 Exemplo de uma linha bronze:
 
 ```csv
@@ -201,10 +225,12 @@ data/silver/snapshots/YYYYMM_silver_snapshot.csv
 | Exposição | Classifica ativos como `nacional` ou `internacional`. |
 | Preços de tickers | Busca preço atual quando ele vem vazio para ações/tickers. |
 | Cache | Salva preços consultados em `data/silver/tickers_cache`. |
+| Associação de preços | Primeiro procura ticker e `data_apuracao` iguais; se necessário, usa a data mais recente disponível no cache e registra um aviso. |
 | Valor total | Calcula `valor_total` com `qtd * preco_atual`. |
+| Validação final | Interrompe a execução se alguma posição permanecer sem `preco_atual` ou `valor_total`. |
 | Snapshot | Salva o arquivo final da camada Silver e retorna o caminho para a Gold. |
 
-Na prática, essa camada é responsável por transformar um preenchimento mais manual em uma base consistente. Ela ainda mantém o nível de detalhe por ativo, instituição e mês.
+Na prática, essa camada é responsável por transformar um preenchimento mais manual em uma base consistente. A consulta ao Yahoo Finance também registra os tickers originais e os nomes enviados ao serviço, avisando quando algum deles não retorna preço. A Silver ainda mantém o nível de detalhe por ativo, instituição e mês.
 
 ## Camada Gold 🥇
 
@@ -245,6 +271,8 @@ Além de agregar os valores, a Gold calcula variações percentuais usando o val
 
 Ele cria a sessão Spark, roda a Silver, recebe o caminho do snapshot Silver gerado e passa esse caminho para a Gold. No final, encerra a sessão Spark.
 
+Também centraliza a configuração dos logs, registra duração e etapa de falha e separa visualmente a execução de cada camada.
+
 ### `pipelines/silver/transformations.py`
 
 Implementa o fluxo da camada Silver descrito acima.
@@ -262,6 +290,8 @@ Implementa o fluxo da camada Gold descrito acima.
 Centraliza a escrita particionada.
 
 Ele identifica o mês da maior `data_apuracao`, monta o destino correto e salva o arquivo final em `data/silver` ou `data/gold`. Isso evita cada camada inventar uma forma diferente de gravar snapshots.
+
+Durante a escrita, registra tabela, partição, quantidade de linhas e colunas, substituição de arquivo existente e caminho final do snapshot.
 
 ### `infra/spark_utils.py`
 
@@ -339,26 +369,13 @@ As tabelas Gold variam conforme o gráfico, mas seguem uma lógica comum:
 | Pizza | `data_apuracao`, `tipo` ou `exposicao`, `valor_total` | Distribuições. |
 | Labels | `data_apuracao`, `instituicao_fin`, `nome`, `qtd`, `preco_medio`, `preco_atual`, `valor_total` | Tabelas detalhadas por instituição. |
 
-## Fluxo De Uso Local 🚀
+## Observações 📝
 
-1. Atualize `data/bronze/economias.csv`.
-2. Rode a pipeline:
-
-```powershell
-python -m pipelines.run_pipeline
-```
-
-3. Abra o dashboard:
-
-```powershell
-iv-app
-```
-
-Ou faça tudo em sequência:
-
-```powershell
-iv-run
-```
+- O projeto é local e pessoal; a simplicidade da estrutura é intencional.
+- A escolha por tecnologias mais robustas, como Spark em vez de uma solução 100% em pandas, foi intencional. Mesmo não sendo a opção mais simples ou performática para este volume de dados, ela foi usada como forma de estudo e experimentação.
+- A Silver concentra limpeza, validação e enriquecimento.
+- A Gold entrega dados prontos para o Streamlit.
+- O app deve ler e plotar, não refazer regra pesada de transformação.
 
 ## Desenvolvimentos Futuros 🧭
 
@@ -389,11 +406,3 @@ Resumo: empacotar a aplicação em Docker para padronizar a execução da pipeli
 | Volumes para `data/` | Permite manter os dados fora do container, preservando snapshots e entradas locais. |
 
 Por que isso faz sentido: hoje o projeto depende do ambiente local estar corretamente configurado, incluindo Python, Java, PySpark e pacotes do `pyproject.toml`. A dockerização deixaria essa base mais estável e reprodutível, principalmente para rodar o projeto em outra máquina ou depois de muito tempo sem mexer no ambiente. A ideia não é transformar o projeto em uma plataforma complexa, mas criar uma forma confiável de executar a pipeline e abrir o dashboard sem depender tanto do setup manual do sistema operacional.
-
-## Observações 📝
-
-- O projeto é local e pessoal; a simplicidade da estrutura é intencional.
-- A escolha por tecnologias mais robustas, como Spark em vez de uma solução 100% em pandas, foi intencional. Mesmo não sendo a opção mais simples ou performática para este volume de dados, ela foi usada como forma de estudo e experimentação.
-- A Silver concentra limpeza e enriquecimento.
-- A Gold entrega dados prontos para o Streamlit.
-- O app deve ler e plotar, não refazer regra pesada de transformação.
