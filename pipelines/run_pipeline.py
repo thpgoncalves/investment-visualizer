@@ -8,6 +8,7 @@ from pathlib import Path
 from infra.spark_utils import build_spark
 from pipelines.gold.gold_metrics import run_gold_pipeline
 from pipelines.shared.logging_utils import log_section_separator
+from pipelines.shared.partition_handler import handler_partitions
 from pipelines.silver.transformations import run_silver_pipeline
 
 
@@ -65,6 +66,12 @@ def run_pipeline(input_path: str | Path = DEFAULT_INPUT_PATH) -> None:
         gold_snapshot_paths = run_gold_pipeline(spark, input_path=silver_snapshot_path)
         logger.info("🥇 GOLD | Completed | files=%s", len(gold_snapshot_paths))
         logger.info("🥇 GOLD | Outputs=%s", gold_snapshot_paths)
+
+        current_stage = "bronze_archive"
+        log_section_separator(logger)
+        logger.info("🥉 BRONZE | Archiving processed input")
+        bronze_history_path = handler_partitions(input_path, "bronze")
+        logger.info("🥉 BRONZE | Archive completed | output=%s", bronze_history_path)
 
         elapsed_seconds = perf_counter() - started_at
         logger.info(LOG_SEPARATOR)

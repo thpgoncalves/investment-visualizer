@@ -8,22 +8,24 @@ Ele não tenta ser uma plataforma financeira completa. O foco é mais direto: tr
 ## Fluxo De Uso Local 🚀
 
 1. Atualize `data/bronze/economias.csv`.
-2. Rode a pipeline:
+2. Rode o fluxo completo:
+
+```powershell
+iv-run
+```
+
+Esse comando executa as camadas Silver e Gold e, ao final, abre o dashboard Streamlit.
+
+Para executar cada parte separadamente, rode somente a pipeline:
 
 ```powershell
 python -m pipelines.run_pipeline
 ```
 
-3. Abra o dashboard:
+Depois, quando quiser abrir apenas o dashboard:
 
 ```powershell
 iv-app
-```
-
-Ou faça tudo em sequência:
-
-```powershell
-iv-run
 ```
 
 Durante a execução, o terminal organiza os logs por Bronze, Silver, Yahoo Finance, cache, Gold e Spark. As mensagens mostram contagens, datas, tickers consultados, snapshots gerados e amostras de inconsistências para facilitar o diagnóstico.
@@ -95,31 +97,33 @@ O fluxo é pensado para ser fácil de reprocessar: atualiza o CSV, roda a pipeli
 
 ```text
 investment-visualizer/
-  app/
-    components/
-    config/
-    pages/
-    static/
+  app/                    # Aplicação Streamlit
+    components/           # Gráficos e elementos reutilizáveis
+    config/               # Configuração das páginas
+    pages/                # Telas do dashboard
+    static/               # Estilos e arquivos visuais
 
-  data/
-    bronze/
-    silver/
-      snapshots/
-      tickers_cache/
-    gold/
-      YYYYMM/
+  data/                   # Entradas e saídas de dados da pipeline
+    bronze/               # CSV bruto preenchido
+      history/            # Histórico dos arquivos processados
+    silver/               # Dados limpos e enriquecidos
+      snapshots/          # Histórico de partições da Silver
+      tickers_cache/      # Cache de preços dos ativos
+    gold/                 # Tabelas prontas para o app
+      YYYYMM/             # Pasta de partição e saídas organizadas por competência
 
-  docs/
+  docs/                   # Recursos da documentação
     images/
 
-  infra/
+  infra/                  # Configuração local do Spark
 
-  pipelines/
-    shared/
-    silver/
-    gold/
+  pipelines/              # Processamento das camadas de dados
+    shared/               # Utilitários compartilhados
+    silver/               # Pipeline de transformações Silver
+    gold/                 # Pipeline de transformações Gold
+    run_pipeline.py       # Orquestrador da pipeline
 
-  notebooks/
+  notebooks/              # testes exploratórios
 ```
 
 ## Inicialização ⚙️
@@ -128,7 +132,6 @@ investment-visualizer/
 
 | Ferramenta | Por quê |
 | --- | --- |
-| Windows + PowerShell | Ambiente usado no desenvolvimento local. |
 | Python 3.11 | O projeto declara suporte para `>=3.11,<3.12`. |
 | Java | Necessário para rodar PySpark localmente. |
 
@@ -166,6 +169,8 @@ iv-app
 O arquivo principal de entrada fica em `data/bronze/economias.csv`.
 
 Para ações/tickers, o Bronze deve trazer apenas o preço médio. O preço atual fica vazio no CSV e é preenchido automaticamente pela Silver: a aplicação consulta o preço de fechamento, salva o resultado em cache e usa esse valor para calcular o snapshot. Em outros tipos de investimento, como renda fixa ou fundos sem busca automática, o preço atual pode vir preenchido no próprio `resumo`.
+
+Quando toda a pipeline termina com sucesso, o arquivo processado é movido para `data/bronze/history` com a competência no nome, como `202605_economias.csv`. Execuções interrompidas antes do fim da Gold não geram esse histórico.
 
 Colunas esperadas:
 
