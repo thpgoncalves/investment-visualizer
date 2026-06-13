@@ -56,6 +56,19 @@ def handler_partitions(df: DataFrame, layer: Literal["silver", "gold"], file_nam
     project_root = Path(__file__).resolve().parents[2]
     partition_ref = f"{ano}{mes:02d}"
     df_final = df.toPandas().copy()
+    logical_name = file_name or "silver_snapshot"
+    layer_emoji = "🥈" if layer == "silver" else "🥇"
+    layer_label = layer.upper()
+
+    logger.info(
+        "%s %s | Snapshot preparation | table=%s | partition=%s | rows=%s | columns=%s",
+        layer_emoji,
+        layer_label,
+        logical_name,
+        partition_ref,
+        len(df_final),
+        len(df_final.columns),
+    )
 
     if layer == "silver":
         location_dir = project_root / "data" / "silver" / "snapshots"
@@ -64,12 +77,17 @@ def handler_partitions(df: DataFrame, layer: Literal["silver", "gold"], file_nam
         location_dir.mkdir(parents=True, exist_ok=True)
 
         if final_file.exists():
-            logger.info("Existing silver snapshot file found. Deleting before saving new file.")
+            logger.info("🥈 SILVER | Replacing existing snapshot | path=%s", final_file)
             final_file.unlink()
 
         df_final.to_csv(final_file, index=False)
 
-        logger.info("File saved at: %s", final_file)
+        logger.info(
+            "🥈 SILVER | Snapshot saved | table=%s | rows=%s | path=%s",
+            logical_name,
+            len(df_final),
+            final_file,
+        )
         return str(final_file)
 
     if file_name is None:
@@ -82,10 +100,15 @@ def handler_partitions(df: DataFrame, layer: Literal["silver", "gold"], file_nam
 
 
     if final_file.exists():
-        logger.info("Existing gold snapshot file found. Deleting before saving new file.")
+        logger.info("🥇 GOLD | Replacing existing snapshot | path=%s", final_file)
         final_file.unlink()
 
     df_final.to_csv(final_file, index=False)
 
-    logger.info("File saved at: %s", final_file)
+    logger.info(
+        "🥇 GOLD | Snapshot saved | table=%s | rows=%s | path=%s",
+        logical_name,
+        len(df_final),
+        final_file,
+    )
     return str(final_file)

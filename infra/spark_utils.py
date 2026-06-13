@@ -1,18 +1,29 @@
 import os
 import sys
+import logging
 
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql.column import Column
 
+
+logger = logging.getLogger(__name__)
+
+
 def build_spark(app_name: str = 'local_finance_pipeline') -> SparkSession:
     python_executable = sys.executable
+
+    logger.info(
+        "⚙️ SPARK | Creating session | app=%s | master=local[1] | python=%s",
+        app_name,
+        python_executable,
+    )
 
     os.environ["PYSPARK_PYTHON"] = python_executable
     os.environ["PYSPARK_DRIVER_PYTHON"] = python_executable
     os.environ["SPARK_LOCAL_IP"] = "127.0.0.1"
     
-    return (
+    spark = (
         SparkSession.builder
         .appName(app_name)
         .master("local[1]") # usa todos 1 cores, para usar todos usar "local[*]"
@@ -25,11 +36,15 @@ def build_spark(app_name: str = 'local_finance_pipeline') -> SparkSession:
         .config("spark.sql.adaptive.coalescePartitions.enabled", "true")
         .config("spark.sql.shuffle.partitions", "1")
         .config("spark.default.parallelism", "1")
-        # Memória (exemplo conservador; ajuste)
+        # Memória (exemplo conservador)
         .config("spark.driver.memory", "4g")
         .config("spark.driver.maxResultSize", "1g")
         .getOrCreate()
     )
+
+    logger.info("⚙️ SPARK | Session ready | version=%s", spark.version)
+    return spark
+
 
 def normalize_ptbr_number(col: Column) -> Column:
     trimmed = F.trim(col)

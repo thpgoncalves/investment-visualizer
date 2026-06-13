@@ -21,12 +21,9 @@ def iv_app() -> None:
 
 
 def iv_run() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s - %(message)s")
-
     from pipelines.run_pipeline import run_pipeline
 
-    logger.info("Running data pipeline")
     run_pipeline()
 
-    logger.info("Starting Streamlit app")
+    logger.info("🖥️ STREAMLIT | Starting application")
     iv_app()

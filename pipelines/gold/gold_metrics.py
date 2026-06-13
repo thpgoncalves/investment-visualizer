@@ -6,6 +6,7 @@ from pyspark.sql import functions as F
 from pyspark.sql.dataframe import DataFrame
 from pyspark.sql.window import Window
 
+from pipelines.shared.logging_utils import log_section_separator
 from pipelines.shared.partition_handler import handler_partitions
 
 
@@ -18,6 +19,12 @@ def get_variation(
     period_column: str,
     partition_columns: list[str],
 ) -> DataFrame:
+    logger.info(
+        "🥇 GOLD | Calculating variation | value=%s | period=%s | partition=%s",
+        value_column,
+        period_column,
+        partition_columns,
+    )
     window = Window.partitionBy(*partition_columns).orderBy(F.col(period_column).asc())
 
     return (
@@ -44,7 +51,7 @@ def run_gold_pipeline(
     *,
     input_path: str,
 ) -> list[str]:
-    logger.info("Starting gold pipeline")
+    logger.info("🥇 GOLD | Pipeline started | input=%s", input_path)
 
     saved_paths = []
 
@@ -73,7 +80,26 @@ def run_gold_pipeline(
         F.col("exposicao").cast("string").alias("exposicao"),
     )
 
-    logger.info("Building home line table")
+    input_stats = (
+        df_silver
+        .agg(
+            F.count(F.lit(1)).alias("rows"),
+            F.countDistinct("instituicao_fin").alias("institutions"),
+            F.min("data_apuracao").alias("min_date"),
+            F.max("data_apuracao").alias("max_date"),
+        )
+        .first()
+    )
+    logger.info(
+        "🥇 GOLD | Silver input summary | rows=%s | institutions=%s | period=%s to %s",
+        input_stats["rows"],
+        input_stats["institutions"],
+        input_stats["min_date"],
+        input_stats["max_date"],
+    )
+
+    log_section_separator(logger)
+    logger.info("🥇 GOLD [1/10] | Building home line")
     df_instituicao = (
         df_silver
         .groupBy("data_apuracao", "ano", "mes", "instituicao_fin")
@@ -124,7 +150,8 @@ def run_gold_pipeline(
     )
     saved_paths.append(handler_partitions(df_home_linha, "gold", "home_linha"))
 
-    logger.info("Building home buttons table")
+    log_section_separator(logger)
+    logger.info("🥇 GOLD [2/10] | Building home buttons")
     latest_home_window = Window.partitionBy("instituicao_fin").orderBy(F.col("data_apuracao").desc())
     df_home_botoes = (
         df_home_linha
@@ -134,7 +161,8 @@ def run_gold_pipeline(
     )
     saved_paths.append(handler_partitions(df_home_botoes, "gold", "home_botoes"))
 
-    logger.info("Building home bar table")
+    log_section_separator(logger)
+    logger.info("🥇 GOLD [3/10] | Building home bars")
     annual_home_window = Window.partitionBy("ano", "instituicao_fin").orderBy(F.col("data_apuracao").desc())
     df_home_barras = (
         df_home_linha
@@ -169,7 +197,9 @@ def run_gold_pipeline(
     )
     saved_paths.append(handler_partitions(df_home_barras, "gold", "home_barras"))
 
-    logger.info("Building contributions base table")
+    log_section_separator(logger)
+    logger.info("🥇 GOLD [4/10] | Building contributions line")
+    logger.info("🥇 GOLD | Preparing contributions base")
     df_aportes_base = (
         df_silver
         .filter(F.col("aporte").isNotNull())
@@ -187,7 +217,6 @@ def run_gold_pipeline(
 
     df_aportes_base = df_aportes_base.dropDuplicates(["bronze_row_id"])
 
-    logger.info("Building contributions line table")
     df_aportes_instituicao = (
         df_aportes_base
         .groupBy("data_apuracao", "ano", "mes_num", "mes", "instituicao_fin")
@@ -235,7 +264,8 @@ def run_gold_pipeline(
     )
     saved_paths.append(handler_partitions(df_aportes_linha, "gold", "aportes_linha"))
 
-    logger.info("Building contributions bar table")
+    log_section_separator(logger)
+    logger.info("🥇 GOLD [5/10] | Building contributions bars")
     df_aportes_instituicao_barras = (
         df_aportes_base
         .groupBy("ano", "instituicao_fin")
@@ -283,6 +313,9 @@ def run_gold_pipeline(
     )
     saved_paths.append(handler_partitions(df_aportes_barras, "gold", "aportes_barras"))
 
+    log_section_separator(logger)
+    logger.info("🥇 GOLD [6/10] | Building exposure pie")
+    logger.info("🥇 GOLD | Preparing latest positions")
     latest_position_window = Window.partitionBy("instituicao_fin", "tipo", "nome").orderBy(
         F.col("data_apuracao").desc()
     )
@@ -293,7 +326,6 @@ def run_gold_pipeline(
         .drop("rn")
     )
 
-    logger.info("Building exposure pie table")
     df_exposicao_all = (
         df_dados_atuais
         .groupBy("data_apuracao", "exposicao")
@@ -326,7 +358,8 @@ def run_gold_pipeline(
     )
     saved_paths.append(handler_partitions(df_exposicao, "gold", "pizza_expo"))
 
-    logger.info("Building type pie table")
+    log_section_separator(logger)
+    logger.info("🥇 GOLD [7/10] | Building type pie")
     df_tipo_all = (
         df_dados_atuais
         .groupBy("data_apuracao", "tipo")
@@ -359,7 +392,8 @@ def run_gold_pipeline(
     )
     saved_paths.append(handler_partitions(df_tipo, "gold", "pizza_tipo"))
 
-    logger.info("Building institution line table")
+    log_section_separator(logger)
+    logger.info("🥇 GOLD [8/10] | Building institution line")
     df_instituicao_page = (
         df_silver
         .groupBy("data_apuracao", "ano", "mes", "instituicao_fin", "nome")
@@ -413,7 +447,8 @@ def run_gold_pipeline(
     )
     saved_paths.append(handler_partitions(df_instituicao_linha, "gold", "instituicao_linha"))
 
-    logger.info("Building institution label table")
+    log_section_separator(logger)
+    logger.info("🥇 GOLD [9/10] | Building institution labels")
     latest_institution_window = Window.partitionBy("instituicao_fin", "nome").orderBy(F.col("data_apuracao").desc())
     df_val_atual_page = (
         df_instituicao_linha
@@ -500,7 +535,8 @@ def run_gold_pipeline(
     )
     saved_paths.append(handler_partitions(df_instituicao_label, "gold", "instituicao_label"))
 
-    logger.info("Building institution bar table")
+    log_section_separator(logger)
+    logger.info("🥇 GOLD [10/10] | Building institution bars")
     annual_institution_window = Window.partitionBy("ano", "instituicao_fin", "nome").orderBy(
         F.col("data_apuracao").desc()
     )
@@ -539,5 +575,6 @@ def run_gold_pipeline(
     )
     saved_paths.append(handler_partitions(df_instituicao_barras, "gold", "instituicao_barras"))
 
-    logger.info("Gold pipeline finished successfully")
+    log_section_separator(logger)
+    logger.info("🥇 GOLD | Pipeline finished | files=%s", len(saved_paths))
     return saved_paths
