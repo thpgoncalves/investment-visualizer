@@ -7,7 +7,11 @@ from pathlib import Path
 
 from infra.spark_utils import build_spark
 from pipelines.gold.gold_metrics import run_gold_pipeline
-from pipelines.shared.logging_utils import log_section_separator
+from pipelines.shared.logging_utils import (
+    PipelineWarningCollector,
+    log_section_separator,
+    log_warning_summary,
+)
 from pipelines.shared.partition_handler import handler_partitions
 from pipelines.silver.transformations import run_silver_pipeline
 
@@ -19,7 +23,7 @@ DEFAULT_INPUT_PATH = PROJECT_ROOT / "data" / "bronze" / "economias.csv"
 LOG_SEPARATOR = "=" * 72
 
 
-def configure_pipeline_logging() -> None:
+def configure_pipeline_logging() -> PipelineWarningCollector:
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(encoding="utf-8")
@@ -33,9 +37,13 @@ def configure_pipeline_logging() -> None:
     logging.getLogger("py4j").setLevel(logging.WARNING)
     logging.getLogger("pyspark").setLevel(logging.WARNING)
 
+    warning_collector = PipelineWarningCollector()
+    logging.getLogger().addHandler(warning_collector)
+    return warning_collector
+
 
 def run_pipeline(input_path: str | Path = DEFAULT_INPUT_PATH) -> None:
-    configure_pipeline_logging()
+    warning_collector = configure_pipeline_logging()
     input_path = Path(input_path)
 
     if not input_path.is_absolute():
@@ -75,15 +83,22 @@ def run_pipeline(input_path: str | Path = DEFAULT_INPUT_PATH) -> None:
 
         elapsed_seconds = perf_counter() - started_at
         logger.info(LOG_SEPARATOR)
-        logger.info("🚀 PIPELINE | Completed successfully | duration=%.2fs", elapsed_seconds)
+        log_warning_summary(logger, warning_collector)
+        logger.info(
+            "🚀 PIPELINE | Completed successfully | warnings=%s | duration=%.2fs",
+            warning_collector.count,
+            elapsed_seconds,
+        )
         logger.info(LOG_SEPARATOR)
 
     except Exception:
         elapsed_seconds = perf_counter() - started_at
         log_section_separator(logger)
+        log_warning_summary(logger, warning_collector)
         logger.exception(
-            "🚀 PIPELINE | Failed | stage=%s | duration=%.2fs | input=%s",
+            "🚀 PIPELINE | Failed | stage=%s | warnings=%s | duration=%.2fs | input=%s",
             current_stage,
+            warning_collector.count,
             elapsed_seconds,
             input_path,
         )

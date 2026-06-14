@@ -28,7 +28,7 @@ Depois, quando quiser abrir apenas o dashboard:
 iv-app
 ```
 
-Durante a execução, o terminal organiza os logs por Bronze, Silver, Yahoo Finance, cache, Gold e Spark. As mensagens mostram contagens, datas, tickers consultados, snapshots gerados e amostras de inconsistências para facilitar o diagnóstico.
+Durante a execução, o terminal organiza os logs por Bronze, Silver, Yahoo Finance, cache, Gold e Spark. As mensagens mostram contagens, datas, tickers consultados, snapshots gerados e amostras de inconsistências para facilitar o diagnóstico. Warnings também são destacados no ponto de origem e reapresentados em um resumo ao final.
 
 ## Visual da Aplicação ✨
 

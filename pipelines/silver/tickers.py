@@ -130,7 +130,7 @@ def get_tickers_price(df: DataFrame, lookback_days: int = 7) -> DataFrame:
             for yahoo_t in yahoo_ticker_list
         ]
         logger.warning(
-            "📈 YAHOO | No valid price returned | period=%s to %s | "
+            "⚠️ 📈 YAHOO | No valid price returned | period=%s to %s | "
             "review_tickers=%s",
             start,
             cutoff,
@@ -214,7 +214,7 @@ def get_tickers_price(df: DataFrame, lookback_days: int = 7) -> DataFrame:
 
     if missing_tickers:
         logger.warning(
-            "📈 YAHOO | No valid price returned for some tickers | "
+            "⚠️ 📈 YAHOO | No valid price returned for some tickers | "
             "period=%s to %s | review_tickers=%s",
             start,
             cutoff,

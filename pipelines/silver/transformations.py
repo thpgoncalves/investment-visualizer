@@ -151,7 +151,7 @@ def _enrich_with_ticker_prices(df, df_cache):
             )
         ]
         logger.warning(
-            "📈 PRICE | Same-day price not found | fallback_date=%s | positions=%s",
+            "⚠️ 📈 PRICE | Same-day price not found | fallback_date=%s | positions=%s",
             latest_cache_date,
             fallback_samples,
         )
