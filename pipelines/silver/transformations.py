@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 
 from pyspark.sql import functions as F
+import pandas as pd 
 
 from infra.spark_utils import normalize_ptbr_number
 from pipelines.shared.logging_utils import log_section_separator
@@ -273,6 +274,28 @@ def run_silver_pipeline(
 ) -> str:
     logger.info("🥈 SILVER | Pipeline started")
 
+    try:
+        df_check = pd.read_csv(input_path, nrows=0)
+        if "instituicao_fin" not in df_check.columns:
+            logger.warning("⚠️ Colunas do Excel detectadas no arquivo original. Corrigindo cabeçalhos in-place...")
+            
+            column_mapping = {
+                "Carimbo de data/hora": "timestamp",
+                "Data Apuração:": "data_apuracao",
+                "Instituição Financeira:": "instituicao_fin",
+                "Resumo Investimentos:": "resumo",
+                "Aporte:": "aporte"
+            }
+            
+            # Carrega o CSV inteiro pelo Pandas, renomeia e salva por cima dele mesmo
+            df_orig = pd.read_csv(input_path)
+            df_orig = df_orig.rename(columns=column_mapping)
+            df_orig.to_csv(input_path, index=False, encoding="utf-8")
+            logger.info("✅ Arquivo original '%s' atualizado com sucesso!", input_path)
+            
+    except Exception as e:
+        logger.error("❌ Falha crítica ao tentar corrigir o arquivo original: %s", e)
+
     log_section_separator(logger)
     logger.info("🥉 BRONZE | Reading CSV | path=%s", input_path)
     df = spark.read.csv(
@@ -281,6 +304,7 @@ def run_silver_pipeline(
         header=True,
         multiLine=True,
     )
+
     bronze_stats = (
         df.agg(
             F.count(F.lit(1)).alias("rows"),
