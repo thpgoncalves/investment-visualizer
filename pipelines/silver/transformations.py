@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+
 import logging
 
 from pyspark.sql import functions as F
+from pyspark.sql.window import Window
 import pandas as pd 
 
 from infra.spark_utils import normalize_ptbr_number
@@ -157,9 +159,14 @@ def _enrich_with_ticker_prices(df, df_cache):
             fallback_samples,
         )
 
+        fallback_window = Window.partitionBy("ticker").orderBy(F.col("data_apuracao").desc())
+
         fallback_cache = (
             df_cache
-            .filter(F.col("data_apuracao") == F.lit(latest_cache_date))
+            .filter(F.col("close").isNotNull() & ~F.isnan("close") & (F.col("close") > 0))
+            .withColumn("_rn", F.row_number().over(fallback_window))
+            .filter(F.col("_rn") == 1)
+            .drop("_rn")
             .select(
                 "ticker",
                 F.col("close").alias("_fallback_close"),

@@ -177,7 +177,7 @@ def get_tickers_price(df: DataFrame, lookback_days: int = 7) -> DataFrame:
                     extracted_at,
                     ROW_NUMBER() OVER(PARTITION BY ticker ORDER BY data_preco DESC) AS rn
                 FROM ticker_prices_raw
-                WHERE close IS NOT NULL AND close > 0
+                WHERE close IS NOT NULL AND NOT isnan(close) AND close > 0
             )
             WHERE rn = 1
         """)
@@ -276,6 +276,7 @@ def handler_tickers_cache(df_prices: DataFrame, cache_dir: str | None = None) ->
         df_all
         .sort_values(["ticker", "data_preco", "extracted_at"], ascending=[True, True, False])
         .drop_duplicates(subset=["ticker", "data_preco"], keep="first")
+        .dropna(subset=["close"])
         .reset_index(drop=True)
     )
 
