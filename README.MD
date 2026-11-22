@@ -1,5 +1,5 @@
-# Investment Visualizer 📊
-> ### As imagens e valores abaixo foram gerados com dados **dummy**, apenas para demonstrar a visualização da aplicação. Eles não representam uma carteira real.
+﻿# Investment Visualizer 📊
+> ### As imagens e valores presentes na documentação foram gerados com dados **dummy**, apenas para demonstrar a visualização da aplicação. Eles não representam uma carteira real.
 
 O **Investment Visualizer** é um projeto local para acompanhar uma carteira de investimentos a partir de um CSV simples. A ideia é pegar um arquivo bruto, organizar os dados em camadas, gerar métricas prontas para visualização e abrir um dashboard em Streamlit para navegar por mês, instituição, tipo de ativo e exposição.
 
@@ -29,6 +29,69 @@ iv-app
 ```
 
 Durante a execução, o terminal organiza os logs por Bronze, Silver, Yahoo Finance, cache, Gold e Spark. As mensagens mostram contagens, datas, tickers consultados, snapshots gerados e amostras de inconsistências para facilitar o diagnóstico. Warnings também são destacados no ponto de origem e reapresentados em um resumo ao final.
+
+## Estrutura do Projeto
+
+### Arquitetura do Repositório
+
+```text
+investment-visualizer/
+├── AGENT_CONSTITUTION.md         # [ESTE ARQUIVO] Leis de governança e arquitetura para IA
+├── README.MD                     # Documentação de apresentação e manual de inicialização
+├── pyproject.toml                # Metadados do projeto, dependências e comandos CLI
+├── app/                          # Aplicação Streamlit (Interface de Usuário)
+│   ├── streamlit_app.py          # Entrypoint da UI, roteador global e seletor de competência
+│   ├── commands.py               # Funções de inicialização via CLI (iv-run, iv-app)
+│   ├── components/
+│   │   ├── charts.py             # Componentes de gráficos Plotly (linha, barras, pizza)
+│   │   └── commons.py            # Componentes visuais compartilhados, cards e estilos
+│   ├── config/
+│   │   └── pages.py              # Catálogo de páginas e escopos institucionais
+│   ├── pages/
+│   │   ├── home.py               # Visão consolidada geral da carteira
+│   │   ├── aportes.py            # Matriz anual e histórico consolidado de aportes
+│   │   ├── page_1.py             # Visão específica da instituição 1
+│   │   ├── page_2.py             # Visão específica da instituição 2
+│   │   ├── page_3.py             # Visão específica da instituição 3
+│   │   └── page_4.py             # Visão específica da instituição 4
+│   └── static/                   # Tipografia (SpaceGrotesk e SpaceMono)
+├── data/                         # Camadas de dados locais (ignoradas no controle de versão)
+│   ├── bronze/
+│   │   ├── economias.csv         # Entrada de dados brutos a processar
+│   │   ├── dummy.csv             # Conjunto de dados sintéticos mantido no Git como referência
+│   │   └── history/              # Histórico de entradas brutas arquivadas pós-execução
+│   ├── silver/
+│   │   ├── snapshots/            # Snapshots particionados limpos e tipados
+│   │   └── tickers_cache/        # Cache persistente de cotações (Parquet e CSV)
+│   └── gold/
+│       └── YYYYMM/               # Partições mensais com os 10 datasets prontos para a UI
+├── infra/
+│   └── spark_utils.py            # Sessão PySpark e normalização numérica pt-BR
+└── pipelines/                    # Engenharia de Pipelines ETL
+    ├── run_pipeline.py           # Orquestrador mestre (Bronze → Silver → Gold → Arquivamento)
+    ├── shared/
+    │   ├── logging_utils.py      # Padronização de logs e coletor de avisos da execução
+    │   └── partition_handler.py  # Gestão de partição e gravação por camada
+    ├── silver/
+    │   ├── transformations.py    # Pipeline Silver: explosão, tipagem, normalização e validação
+    │   └── tickers.py            # Integração com Yahoo Finance e gestão de cache
+    └── gold/
+        └── gold_metrics.py       # Pipeline Gold: rentabilidade real, foto full e agregações
+```
+
+### Fluxo da Pipeline
+
+```mermaid
+flowchart TD
+    A["Bronze: data/bronze/economias.csv"] --> B["run_silver_pipeline()"]
+    B --> C["tickers.py (Yahoo Finance + Cache Local)"]
+    C --> B
+    B --> D["Silver: data/silver/snapshots/YYYYMM_silver_snapshot.csv"]
+    D --> E["run_gold_pipeline()"]
+    E --> F["Gold: data/gold/YYYYMM/*.csv (10 datasets)"]
+    E --> G["Arquivamento: data/bronze/history/YYYYMM_economias.csv"]
+    F --> H["Streamlit UI (Leitura direta dos CSVs Gold)"]
+```
 
 ## Visual da Aplicação ✨
 
@@ -92,39 +155,6 @@ O fluxo é pensado para ser fácil de reprocessar: atualiza o CSV, roda a pipeli
 | Silver | Bronze | `data/silver/snapshots/YYYYMM_silver_snapshot.csv` | Limpa, explode o resumo, tipa colunas, calcula valores e enriquece preços. |
 | Gold | Silver | `data/gold/YYYYMM/*_gold_*_snapshot.csv` | Gera tabelas já prontas para os gráficos e cards do Streamlit. |
 | App | Gold | Dashboard | Lê os CSVs finais e renderiza a interface. |
-
-## Estrutura Do Projeto 🗂️
-
-```text
-investment-visualizer/
-  app/                    # Aplicação Streamlit
-    components/           # Gráficos e elementos reutilizáveis
-    config/               # Configuração das páginas
-    pages/                # Telas do dashboard
-    static/               # Estilos e arquivos visuais
-
-  data/                   # Entradas e saídas de dados da pipeline
-    bronze/               # CSV bruto preenchido
-      history/            # Histórico dos arquivos processados
-    silver/               # Dados limpos e enriquecidos
-      snapshots/          # Histórico de partições da Silver
-      tickers_cache/      # Cache de preços dos ativos
-    gold/                 # Tabelas prontas para o app
-      YYYYMM/             # Pasta de partição e saídas organizadas por competência
-
-  docs/                   # Recursos da documentação
-    images/
-
-  infra/                  # Configuração local do Spark
-
-  pipelines/              # Processamento das camadas de dados
-    shared/               # Utilitários compartilhados
-    silver/               # Pipeline de transformações Silver
-    gold/                 # Pipeline de transformações Gold
-    run_pipeline.py       # Orquestrador da pipeline
-
-  notebooks/              # testes exploratórios
-```
 
 ## Inicialização ⚙️
 
