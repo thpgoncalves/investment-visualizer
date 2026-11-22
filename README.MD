@@ -36,14 +36,14 @@ Durante a execução, o terminal organiza os logs por Bronze, Silver, Yahoo Fina
 
 ```text
 investment-visualizer/
-├── AGENT_CONSTITUTION.md         # [ESTE ARQUIVO] Leis de governança e arquitetura para IA
+├── AGENT_CONSTITUTION.md         # Leis de governança e arquitetura para agentes de IA
 ├── README.MD                     # Documentação de apresentação e manual de inicialização
 ├── pyproject.toml                # Metadados do projeto, dependências e comandos CLI
 ├── app/                          # Aplicação Streamlit (Interface de Usuário)
 │   ├── streamlit_app.py          # Entrypoint da UI, roteador global e seletor de competência
 │   ├── commands.py               # Funções de inicialização via CLI (iv-run, iv-app)
 │   ├── components/
-│   │   ├── charts.py             # Componentes de gráficos Plotly (linha, barras, pizza)
+│   │   ├── charts.py             # Fábrica de gráficos Plotly (linha, barras, pizza)
 │   │   └── commons.py            # Componentes visuais compartilhados, cards e estilos
 │   ├── config/
 │   │   └── pages.py              # Catálogo de páginas e escopos institucionais
@@ -61,19 +61,19 @@ investment-visualizer/
 │   │   ├── dummy.csv             # Conjunto de dados sintéticos mantido no Git como referência
 │   │   └── history/              # Histórico de entradas brutas arquivadas pós-execução
 │   ├── silver/
-│   │   ├── snapshots/            # Snapshots particionados limpos e tipados
+│   │   ├── snapshots/            # Histórico snapshots particionados limpos e tipados
 │   │   └── tickers_cache/        # Cache persistente de cotações (Parquet e CSV)
 │   └── gold/
-│       └── YYYYMM/               # Partições mensais com os 10 datasets prontos para a UI
+│       └── YYYYMM/               # Partições mensais com os 10 datasets por partição prontos para a UI
 ├── infra/
-│   └── spark_utils.py            # Sessão PySpark e normalização numérica pt-BR
-└── pipelines/                    # Engenharia de Pipelines ETL
+│   └── spark_utils.py            # Construtor da sessão Spark local e UDFs auxiliares
+└── pipelines/                    # Pipelines ETL
     ├── run_pipeline.py           # Orquestrador mestre (Bronze → Silver → Gold → Arquivamento)
     ├── shared/
-    │   ├── logging_utils.py      # Padronização de logs e coletor de avisos da execução
+    │   ├── logging_utils.py      # Formatador de logs e coletor de avisos da pipeline
     │   └── partition_handler.py  # Gestão de partição e gravação por camada
     ├── silver/
-    │   ├── transformations.py    # Pipeline Silver: explosão, tipagem, normalização e validação
+    │   ├── transformations.py    # Pipeline Silver: explosão, tipagem, limpeza, normalização e validação
     │   └── tickers.py            # Integração com Yahoo Finance e gestão de cache
     └── gold/
         └── gold_metrics.py       # Pipeline Gold: rentabilidade real, foto full e agregações
@@ -88,7 +88,7 @@ flowchart TD
     C --> B
     B --> D["Silver: data/silver/snapshots/YYYYMM_silver_snapshot.csv"]
     D --> E["run_gold_pipeline()"]
-    E --> F["Gold: data/gold/YYYYMM/*.csv (10 datasets)"]
+    E --> F["Gold: data/gold/YYYYMM/*.csv (10 datasets por partição)"]
     E --> G["Arquivamento: data/bronze/history/YYYYMM_economias.csv"]
     F --> H["Streamlit UI (Leitura direta dos CSVs Gold)"]
 ```
