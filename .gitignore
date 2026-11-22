@@ -211,7 +211,9 @@ __marimo__/
 # caches, and all generated pipeline outputs must stay local.
 preenchimento.txt
 tabela.excalidraw
+BACKLOG.md
 
 data/**
 !data/bronze/
 !data/bronze/dummy.csv
+
