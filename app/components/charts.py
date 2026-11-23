@@ -181,18 +181,37 @@ def build_line_chart(
         chart_name="line chart",
     )
 
-    y_min = df[y_col].min()
-    y_max = df[y_col].max()
+    figure = go.Figure()
+    valid_df = df.dropna(subset=[y_col])
+    if valid_df.empty:
+        layout = build_base_layout(title)
+        layout["height"] = 320
+        figure.update_layout(**layout)
+        figure.add_annotation(
+            text="Sem dados suficientes para exibição",
+            showarrow=False,
+            font=dict(size=12, color="#8f8a78"),
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+        )
+        figure.update_xaxes(visible=False)
+        figure.update_yaxes(visible=False)
+        return figure
+
+    y_min = valid_df[y_col].min()
+    y_max = valid_df[y_col].max()
     y_range = y_max - y_min
     y_padding = max(y_range * 0.2, abs(y_max) * 0.12, 1)
 
-    figure = go.Figure()
-
-    series_names = df[series_col].dropna().unique()
+    series_names = valid_df[series_col].dropna().unique()
 
     for index, series_name in enumerate(series_names):
-        series_df = df[df[series_col] == series_name]
+        series_df = valid_df[valid_df[series_col] == series_name]
         color = get_chart_color(index)
+        is_reference = ("INVESTIDO" in str(series_name).upper()) or ("APORTADO" in str(series_name).upper())
+        line_style = dict(color=color, dash="dash") if is_reference else dict(color=color)
 
         if percentual == False:
             figure.add_trace(
@@ -204,21 +223,10 @@ def build_line_chart(
                     text=[""] * (len(series_df) - 1) + [format_compact_currency(series_df[y_col].iloc[-1])],
                     textposition="top right",
                     textfont=dict(size=11),
-                    line=dict(color=color),
+                    line=line_style,
                     marker=dict(color=color),
                 )
             )
-
-            layout = build_base_layout(title)
-            layout["height"] = 320
-            layout["yaxis"] = {
-                **layout["yaxis"],
-                "range": [0, y_max + y_padding],
-                "tickformat": "~s",
-            }
-            figure.update_layout(**layout)
-
-
         else:
             figure.add_trace(
                 go.Scatter(
@@ -229,18 +237,25 @@ def build_line_chart(
                     text=[""] * (len(series_df) - 1) + [f"{series_df[y_col].iloc[-1]:,.2f}%"],
                     textposition="top right",
                     textfont=dict(size=11),
-                    line=dict(color=color),
+                    line=line_style,
                     marker=dict(color=color),
                 )
             )
 
-            layout = build_base_layout(title)
-            layout["height"] = 320
-            layout["yaxis"] = {
-                **layout["yaxis"],
-                "range": [y_min - y_padding, y_max + y_padding],
-            }
-            figure.update_layout(**layout)
+    layout = build_base_layout(title)
+    layout["height"] = 320
+    if percentual == False:
+        layout["yaxis"] = {
+            **layout["yaxis"],
+            "range": [0, y_max + y_padding],
+            "tickformat": "~s",
+        }
+    else:
+        layout["yaxis"] = {
+            **layout["yaxis"],
+            "range": [y_min - y_padding, y_max + y_padding],
+        }
+    figure.update_layout(**layout)
 
     return figure
 
@@ -265,43 +280,67 @@ def build_grouped_bar_chart(
     )
 
     figure = go.Figure()
+    valid_df = df.dropna(subset=[y_col])
+    if valid_df.empty:
+        layout = build_base_layout(title)
+        layout["height"] = 320
+        figure.update_layout(**layout)
+        figure.add_annotation(
+            text="Sem histórico suficiente para cálculo de variação",
+            showarrow=False,
+            font=dict(size=12, color="#8f8a78"),
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+        )
+        figure.update_xaxes(visible=False)
+        figure.update_yaxes(visible=False)
+        return figure
 
-    series_names = df[series_col].dropna().unique()
+    if "ano" in valid_df.columns:
+        valid_df = valid_df.sort_values(by="ano")
+
+    series_names = valid_df[series_col].dropna().unique()
 
     for index, series_name in enumerate(series_names):
-        series_df = df[df[series_col] == series_name]
+        series_df = valid_df[valid_df[series_col] == series_name]
         color = get_chart_color(index)
 
         if percentual == False:
             figure.add_trace(
                 go.Bar(
-                x=series_df[x_col],
-                y=series_df[y_col],
-                name=str(series_name),
-                text=[format_compact_currency(value) for value in series_df[y_col]],
-                textposition="outside",
-                textfont=dict(size=10),
-                cliponaxis=False,
-                marker_color=color,
+                    x=series_df[x_col],
+                    y=series_df[y_col],
+                    name=str(series_name),
+                    text=[format_compact_currency(value) for value in series_df[y_col]],
+                    textposition="outside",
+                    textfont=dict(size=10),
+                    cliponaxis=False,
+                    marker_color=color,
                 )
             )
 
         else:
             figure.add_trace(
                 go.Bar(
-                x=series_df[x_col],
-                y=series_df[y_col],
-                name=str(series_name),
-                text=[f"{value:,.2f}%" for value in series_df[y_col]],
-                textposition="outside",
-                textfont=dict(size=10),
-                cliponaxis=False,
-                marker_color=color,
+                    x=series_df[x_col],
+                    y=series_df[y_col],
+                    name=str(series_name),
+                    text=[f"{value:,.2f}%" for value in series_df[y_col]],
+                    textposition="outside",
+                    textfont=dict(size=10),
+                    cliponaxis=False,
+                    marker_color=color,
                 )
             )
 
     layout = build_base_layout(title)
     layout["height"] = 320
+    layout["xaxis"] = {
+        **layout["xaxis"],
+        "type": "category",
+    }
 
     if percentual == False:
         layout["yaxis"] = {

@@ -2,19 +2,18 @@ from __future__ import annotations
 
 import logging
 import sys
-from time import perf_counter
 from pathlib import Path
+from time import perf_counter
 
 from infra.spark_utils import build_spark
-from pipelines.gold.gold_metrics import run_gold_pipeline
+from pipelines.bronze.ingestion import archive_bronze_input, load_bronze_input
+from pipelines.gold.gold_metrics import save_gold_snapshots, transform_gold
 from pipelines.shared.logging_utils import (
     PipelineWarningCollector,
     log_section_separator,
     log_warning_summary,
 )
-from pipelines.shared.partition_handler import handler_partitions
-from pipelines.silver.transformations import run_silver_pipeline
-
+from pipelines.silver.transformations import save_silver_snapshot, transform_silver
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +23,13 @@ LOG_SEPARATOR = "=" * 72
 
 
 def configure_pipeline_logging() -> PipelineWarningCollector:
+    """
+    Configura a formatação e encoding do logging da pipeline,
+    anexando o coletor de warnings da execução.
+
+    Retorna:
+        Instância de PipelineWarningCollector configurada.
+    """
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(encoding="utf-8")
@@ -43,6 +49,15 @@ def configure_pipeline_logging() -> PipelineWarningCollector:
 
 
 def run_pipeline(input_path: str | Path = DEFAULT_INPUT_PATH) -> None:
+    """
+    Orquestrador mestre da pipeline ETL do Investment Visualizer.
+    Executa o ciclo de vida completo dos dados no estilo funcional:
+    Bronze (ingestão) -> Silver (transformação e snapshot) ->
+    Gold (modelagem analítica e 10 snapshots) -> Bronze (arquivamento).
+
+    Parâmetros:
+        input_path: Caminho para o arquivo CSV de entrada da camada Bronze.
+    """
     warning_collector = configure_pipeline_logging()
     input_path = Path(input_path)
 
@@ -62,23 +77,34 @@ def run_pipeline(input_path: str | Path = DEFAULT_INPUT_PATH) -> None:
     try:
         spark = build_spark(app_name="investment_visualizer_pipeline")
 
+        # 🥉 BRONZE | Ingestão e Preparação
+        current_stage = "bronze_load"
+        log_section_separator(logger)
+        logger.info("🥉 BRONZE | Loading input")
+        df_bronze = load_bronze_input(spark, input_path)
+
+        # 🥈 SILVER | Transformação Pura e Persistência
         current_stage = "silver"
         log_section_separator(logger)
-        logger.info("🥈 SILVER | Starting")
-        silver_snapshot_path = run_silver_pipeline(spark, input_path=str(input_path))
+        logger.info("🥈 SILVER | Starting transformation")
+        df_silver = transform_silver(df_bronze)
+        silver_snapshot_path = save_silver_snapshot(df_silver)
         logger.info("🥈 SILVER | Completed | output=%s", silver_snapshot_path)
 
+        # 🥇 GOLD | Modelagem Analítica Pura e Persistência dos 10 Datasets
         current_stage = "gold"
         log_section_separator(logger)
-        logger.info("🥇 GOLD | Starting")
-        gold_snapshot_paths = run_gold_pipeline(spark, input_path=silver_snapshot_path)
+        logger.info("🥇 GOLD | Starting transformation")
+        gold_datasets = transform_gold(df_silver)
+        gold_snapshot_paths = save_gold_snapshots(gold_datasets)
         logger.info("🥇 GOLD | Completed | files=%s", len(gold_snapshot_paths))
         logger.info("🥇 GOLD | Outputs=%s", gold_snapshot_paths)
 
+        # 🥉 BRONZE | Arquivamento do arquivo de entrada processado
         current_stage = "bronze_archive"
         log_section_separator(logger)
         logger.info("🥉 BRONZE | Archiving processed input")
-        bronze_history_path = handler_partitions(input_path, "bronze")
+        bronze_history_path = archive_bronze_input(input_path)
         logger.info("🥉 BRONZE | Archive completed | output=%s", bronze_history_path)
 
         elapsed_seconds = perf_counter() - started_at

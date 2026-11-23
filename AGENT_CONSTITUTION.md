@@ -68,15 +68,18 @@ investment-visualizer/
 ├── infra/
 │   └── spark_utils.py            # Sessão PySpark e normalização numérica pt-BR
 └── pipelines/                    # Engenharia de Pipelines ETL
-    ├── run_pipeline.py           # Orquestrador mestre (Bronze → Silver → Gold → Arquivamento)
+    ├── run_pipeline.py           # Orquestrador mestre funcional ("Sumário do Livro")
+    ├── bronze/
+    │   └── ingestion.py          # Leitura do CSV bruto, normalização de cabeçalhos e arquivamento
     ├── shared/
     │   ├── logging_utils.py      # Padronização de logs e coletor de avisos da execução
     │   └── partition_handler.py  # Gestão de partição e gravação por camada
     ├── silver/
-    │   ├── transformations.py    # Pipeline Silver: explosão, tipagem, normalização e validação
+    │   ├── transformations.py    # Pipeline Silver: funções puras (resumo, normalização, tipagem, validação)
     │   └── tickers.py            # Integração com Yahoo Finance e gestão de cache
     └── gold/
-        └── gold_metrics.py       # Pipeline Gold: rentabilidade real, foto full e agregações
+        ├── metrics_builders.py   # Cálculos matemáticos puros e builders analíticos por domínio
+        └── gold_metrics.py       # Orquestrador analítico (transform_gold) e persistência (save_gold_snapshots)
 ```
 
 ---
@@ -93,30 +96,35 @@ Registrados no `pyproject.toml` e implementados em `app/commands.py`:
 
 ---
 
-## 5. Pipeline ETL (Medallion Architecture)
+## 5. Pipeline ETL (Medallion Architecture Funcional)
 
 ```mermaid
 flowchart TD
-    A["Bronze: data/bronze/economias.csv"] --> B["run_silver_pipeline()"]
-    B --> C["tickers.py (Yahoo Finance + Cache Local)"]
-    C --> B
-    B --> D["Silver: data/silver/snapshots/YYYYMM_silver_snapshot.csv"]
-    D --> E["run_gold_pipeline()"]
-    E --> F["Gold: data/gold/YYYYMM/*.csv (10 datasets)"]
-    E --> G["Arquivamento: data/bronze/history/YYYYMM_economias.csv"]
-    F --> H["Streamlit UI (Leitura direta dos CSVs Gold)"]
+    A["Bronze: data/bronze/economias.csv"] --> B["load_bronze_input()"]
+    B --> C["transform_silver()"]
+    C --> D["tickers.py (Yahoo Finance + Cache Local)"]
+    D --> C
+    C --> E["save_silver_snapshot()"]
+    C --> F["transform_gold()"]
+    F --> G["metrics_builders.py (4 Builders de Domínio)"]
+    G --> F
+    F --> H["save_gold_snapshots() (10 datasets)"]
+    H --> I["archive_bronze_input()"]
+    H --> J["Streamlit UI (Leitura direta dos CSVs Gold)"]
 ```
 
-### 5.1 Camada Bronze (Dados Brutos)
+### 5.1 Camada Bronze (`pipelines/bronze/ingestion.py`)
 * **Arquivo esperado:** `data/bronze/economias.csv` (contendo os lançamentos históricos até a data de corte).
 * **Contrato de colunas:** `timestamp`, `data_apuracao`, `instituicao_fin`, `resumo`, `aporte`.
+* **Normalização In-place:** Detecta e renomeia automaticamente cabeçalhos originários do Google Forms/Excel.
+* **Identificador de Linha:** Adiciona `bronze_row_id` com `monotonically_increasing_id()`.
 * **Formato do campo `resumo`** (multilinha, delimitado por pipe `|`):
   ```text
   tipo | nome | qtd | preco_medio | preco_atual
   ```
   - `tipo = "stock"`: O `preco_atual` pode vir em branco para busca automática de cotação.
   - Demais classes (renda fixa, fundos, cripto): O `preco_atual` deve vir informado no registro.
-* **Arquivamento:** Concluída a pipeline com sucesso, o arquivo de entrada é movido para `data/bronze/history/{YYYYMM}_economias.csv`.
+* **Arquivamento (`archive_bronze_input`):** Concluída a pipeline com sucesso, o arquivo de entrada é movido para `data/bronze/history/{YYYYMM}_economias.csv`.
 
 ### 5.2 Camada Silver (`pipelines/silver/transformations.py`)
 1. **Explosão do Resumo:** A célula multilinha de cada instituição é desdobrada em linhas unitárias de investimento.
@@ -156,37 +164,76 @@ A camada Gold processa o snapshot Silver gerado e entrega **10 datasets** modela
 * **Problema Resolvido:** O dinheiro novo aportado na carteira não pode ser interpretado como valorização ou lucro de investimentos.
 * **Fórmula Adotada (Opção A — Aporte no Final do Mês):**
   $$\text{Rentabilidade (\%)} = \frac{\text{Valor Atual} - \text{Valor Anterior} - \text{Aporte}}{\text{Valor Anterior}} \times 100$$
-* **Implementação:** Função `get_variation_with_flow` em `gold_metrics.py`.
+* **Implementação:** Funções `get_variation_with_flow` (mensal) e `get_annual_variation_with_flow` (anual/YTD) em `metrics_builders.py`.
 * **Escopos Aplicados:**
-  - Consolidado Geral da Carteira (`ALL` na Home).
-  - Totais de cada instituição financeira (`home_botoes` e linha `ALL` das instituições).
+  - Consolidado Geral da Carteira e Instituições (`ALL` e por instituição na Home: `home_linha`, `home_botoes` e `home_barras`).
+  - Totais anuais da instituição (`ALL` em `instituicao_barras`).
 
-### 6.3 Variação Mensal de Ativos Individuais nos Gráficos
-* **Problema Resolvido:** A aquisição de novas cotas de um mesmo ativo entre meses (ex: passar de 10 para 30 cotas) inflava o patrimônio daquela linha, gerando falsos picos percentuais (ex: +200%) no gráfico de evolução do ativo.
-* **Regra Adotada:** Nos gráficos de evolução temporal mensal por ativo individual (`nome != 'ALL'` em `instituicao_linha`), a variação mede exclusivamente a oscilação da **cota/preço unitário**:
+### 6.3 Variação Mensal de Ativos e Carteira nos Gráficos da Instituição (`instituicao_linha`)
+* **Problema Resolvido:** A aquisição de novas cotas de um mesmo ativo entre meses (ex: passar de 10 para 30 cotas) ou novas entradas de capital sem registro explícito de aporte inflavam o patrimônio daquela linha, gerando falsos picos percentuais (ex: +200% em ações ou +50% no consolidado `ALL`).
+* **Regra Adotada para Ativos Individuais (`nome != 'ALL'`):** A variação mede exclusivamente a oscilação da **cota/preço unitário**:
   $$\text{Variação do Ativo (\%)} = \frac{\text{preço\_atual}_t - \text{preço\_atual}_{t-1}}{\text{preço\_atual}_{t-1}} \times 100$$
+* **Regra Adotada para o Consolidado da Instituição (`nome == 'ALL'`):** A variação mede o **retorno ponderado dos ativos** que compunham a carteira no mês anterior ($t-1$):
+  $$\text{Retorno ALL}_t = \frac{\sum_i \left( \text{valor\_total}_{i, t-1} \times \text{Variação do Ativo}_{i, t} \right)}{\sum_i \text{valor\_total}_{i, t-1}}$$
+  garantindo que o índice da instituição reflita a rentabilidade real das ações em carteira, sem distorções de novas cotas adquiridas.
 
 ### 6.4 Tabela Detalhada de Investimentos (`instituicao_label`)
 * **Regra de Exibição:** Na tabela detalhada de cada instituição, a coluna `Var. %` representa o **retorno acumulado da posição desde a aquisição em relação ao preço médio**:
   $$\text{Retorno da Posição (\%)} = \frac{\text{valor\_total} - \text{preço\_entrada}}{\text{preço\_entrada}} \times 100 = \frac{\text{preço\_atual} - \text{preço\_médio}}{\text{preço\_médio}} \times 100$$
   onde $\text{preço\_entrada} = \text{qtd} \times \text{preço\_médio}$.
 
-### 6.5 Catálogo dos 10 Datasets Gold
+### 6.5 Escada de Aportes nos Gráficos de Absolutos (`Capital Investido`)
+* **Problema Resolvido:** No gráfico temporal de valores absolutos (R$), o investidor precisa distinguir visualmente o patrimônio flutuante de mercado do capital que efetivamente saiu do bolso ao longo do tempo.
+* **Fórmula Adotada (Opção 2 — Escada de Aportes):**
+  $$\text{Capital Aportado}_0 = V_0 \quad (\text{patrimônio inicial de partida no mês } t=0)$$
+  $$\text{Capital Aportado}_t = \text{Capital Aportado}_{t-1} + \text{Aporte}_t \quad (\text{para } t \ge 1)$$
+* **Implementação:** Função `get_cumulative_capital` em `metrics_builders.py`.
+* **Escopos e Comportamento Visual:**
+  - **Na Home (`home_linha`):** Série adicional identificada por `instituicao_fin = 'Capital Investido'`, refletindo o capital acumulado consolidado da carteira com `variacao_percentual = None`.
+  - **Na Instituição (`instituicao_linha`):** Série adicional identificada por `nome = 'Capital Investido'`, particionada por `instituicao_fin`, refletindo o capital acumulado de cada instituição com `variacao_percentual = None`.
+  - **Componente de Gráfico (`build_line_chart` em `charts.py`):** A série `Capital Investido` é estilizada automaticamente com linha tracejada (`dash="dash"`), servindo como régua visual do capital investido. Nos gráficos de percentuais, séries sem variação numérica são ignoradas defensivamente, sem poluição de `nan%`.
+  - **Isolamento de Datasets:** Os datasets pontuais (`home_botoes`, `instituicao_label` e barras anuais) são gerados antes do acoplamento dessa série, garantindo total isolamento das tabelas de ativos e atalhos.
+
+### 6.6 Dinâmica de Anos Consolidados, YTD e Cálculo Anual nos Gráficos de Barras (`rotulo_ano`)
+* **Problema Resolvido:** O ano corrente em andamento não representa um ciclo de 12 meses fechado; além disso, carteiras ou ativos iniciados no primeiro ano da base não possuem fechamento do ano anterior (`lag` nulo), o que impedia a apuração da rentabilidade acumulada no ano (Year-To-Date).
+* **Regra de Rotulagem Dinâmica (`rotulo_ano`):**
+  - `rotulo_ano = "YTD"` para o ano corrente (`ano == max_ano`).
+  - `rotulo_ano = str(ano)` para qualquer ano civil já encerrado (`ano < max_ano`).
+  - **Transição Automática:** Quando o primeiro mês de um novo ano (ex: 2027) for processado, o ano anterior (2026) torna-se automaticamente encerrado, congelando sua barra como `"2026"` consolidado, enquanto o novo ano assume a barra `"YTD"`.
+* **Regra Matemática — Consolidado e Instituições (`get_annual_variation_with_flow`):**
+  - Aplicada em `home_barras` (`ALL` e por instituição) e na série consolidada `ALL` de `instituicao_barras`.
+  - **Anos subsequentes (com ano anterior no histórico):** A base é o patrimônio de fechamento do ano anterior ($V_{\text{fechamento}, a-1}$) e deduzem-se todos os aportes realizados ao longo do ano $a$:
+    $$\text{Variação Anual (\%)} = \frac{V_{\text{fechamento}, a} - V_{\text{fechamento}, a-1} - \sum \text{Aportes}_{a}}{V_{\text{fechamento}, a-1}} \times 100$$
+  - **Ano inicial do histórico (sem ano anterior na base):** A base é o primeiro snapshot registrado naquele ano ($V_{\text{primeiro}, a}$ na data $d_0$) e deduzem-se estritamente os aportes ocorridos após $d_0$:
+    $$\text{Variação YTD Inicial (\%)} = \frac{V_{\text{último}, a} - V_{\text{primeiro}, a} - \sum_{d > d_0} \text{Aportes}_{a, d}}{V_{\text{primeiro}, a}} \times 100$$
+  - **Histórico insuficiente (apenas 1 snapshot registrado em todo o histórico da partição):** Retorna `None` (`NaN`).
+* **Regra Matemática — Ativos Individuais (`get_annual_asset_variation`):**
+  - Aplicada em `instituicao_barras` para ativos individuais (`nome != 'ALL'`), medindo exclusivamente a oscilação da **cota/preço unitário (`preco_atual`)** para evitar distorções de novas compras ou vendas parciais de cotas:
+    $$\text{Variação Anual da Cota (\%)} = \frac{P_{\text{fechamento}, a} - P_{\text{base}}}{P_{\text{base}}} \times 100$$
+  - **Anos com histórico anterior:** $P_{\text{base}}$ corresponde ao `preco_atual` de fechamento do ano anterior ($a-1$).
+  - **Ano de entrada do ativo (sem ano anterior):** $P_{\text{base}}$ corresponde ao primeiro `preco_atual` registrado para o ativo naquele ano (desde que exista mais de uma data de apuração).
+  - **Ativo com apenas 1 data de apuração:** Retorna `None` (`NaN`).
+* **Comportamento nos Gráficos (`app/components/charts.py`):**
+  - Nos **Absolutos** (`valor_total`): Exibe o último snapshot apurado de cada ano (ex: `2025` e `YTD`).
+  - Nos **Percentuais** (`variacao_percentual`): Registros com variação `NaN` (ex: ativos recém-adquiridos com apenas 1 snapshot) são filtrados defensivamente, mantendo apenas barras com retornos válidos.
+  - **Estado Vazio Elegante:** Caso todas as séries filtradas possuam valores nulos (`valid_df.empty`), tanto `build_grouped_bar_chart` quanto `build_line_chart` aplicam `build_base_layout(title)`, ocultam os eixos numéricos e exibem uma anotação centralizada (`"Sem histórico suficiente para cálculo de variação"` nas barras e `"Sem dados suficientes para exibição"` nas linhas).
+
+### 6.7 Catálogo dos 10 Datasets Gold
 
 Gerados na pasta `data/gold/{YYYYMM}/` no formato `{YYYYMM}_gold_{nome}_snapshot.csv`:
 
 | # | Identificador | Escopo Temporal e Agrupamento | Consumo no Dashboard |
 |---|---|---|---|
-| 1 | `home_linha` | Mensal: consolidado `ALL` e por instituição | Gráfico temporal da Home (valores absolutos e rentabilidade Opção A) |
+| 1 | `home_linha` | Mensal: consolidado `ALL`, por instituição e `Capital Investido` | Gráfico temporal da Home (valores absolutos, rentabilidade Opção A e escada de aportes) |
 | 2 | `home_botoes` | Último mês: `ALL` e por instituição | Botões de atalho da Home com valor total e rentabilidade recente |
-| 3 | `home_barras` | Anual: `ALL` e por instituição | Gráfico anual consolidado deduzindo aportes anuais |
+| 3 | `home_barras` | Anual: `ALL` e por instituição (com `rotulo_ano`: consolidado vs `YTD`) | Gráfico anual consolidado deduzindo aportes anuais |
 | 4 | `aportes_linha` | Mensal: `ALL` e por instituição | Gráfico temporal de evolução dos aportes realizados |
 | 5 | `aportes_barras` | Anual: `ALL` e por instituição | Gráfico anual de barras de aportes |
 | 6 | `pizza_expo` | Última foto: Nacional vs Internacional | Gráficos de distribuição por exposição geográfica |
 | 7 | `pizza_tipo` | Última foto: Stock, Cripto, Renda Fixa | Gráficos de distribuição por classe de ativo |
-| 8 | `instituicao_linha` | Mensal: por ativo individual e `ALL` | Gráfico de evolução na tela da instituição (oscilação de cota e rentabilidade total) |
+| 8 | `instituicao_linha` | Mensal: por ativo individual, `ALL` e `Capital Investido` | Gráfico de evolução na tela da instituição (oscilação de cota, rentabilidade ponderada e escada de aportes) |
 | 9 | `instituicao_label` | Última foto: detalhamento por ativo | Tabela de investimentos da instituição com preço médio, cota e retorno acumulado |
-| 10 | `instituicao_barras` | Anual: por ativo individual e `ALL` | Gráficos anuais de barras na tela da instituição |
+| 10 | `instituicao_barras` | Anual: por ativo individual e `ALL` (com `rotulo_ano`: consolidado vs `YTD`) | Gráficos anuais de barras na tela da instituição |
 
 ---
 

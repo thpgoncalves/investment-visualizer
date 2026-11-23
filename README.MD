@@ -68,29 +68,36 @@ investment-visualizer/
 ├── infra/
 │   └── spark_utils.py            # Construtor da sessão Spark local e UDFs auxiliares
 └── pipelines/                    # Pipelines ETL
-    ├── run_pipeline.py           # Orquestrador mestre (Bronze → Silver → Gold → Arquivamento)
-    ├── shared/
+    ├── run_pipeline.py           # Orquestrador mestre funcional (Bronze → Silver → Gold → Arquivamento)
+    ├── bronze/                   # Camada Bronze
+    │   └── ingestion.py          # Leitura PySpark e normalização de cabeçalhos brutos
+    ├── shared/                   # Utilitários compartilhados
     │   ├── logging_utils.py      # Formatador de logs e coletor de avisos da pipeline
     │   └── partition_handler.py  # Gestão de partição e gravação por camada
-    ├── silver/
-    │   ├── transformations.py    # Pipeline Silver: explosão, tipagem, limpeza, normalização e validação
+    ├── silver/                   # Camada Silver
+    │   ├── transformations.py    # Pipeline Silver: explosão, tipagem, limpeza e enriquecimento de preços
     │   └── tickers.py            # Integração com Yahoo Finance e gestão de cache
-    └── gold/
-        └── gold_metrics.py       # Pipeline Gold: rentabilidade real, foto full e agregações
+    └── gold/                     # Camada Gold
+        ├── metrics_builders.py   # Builders analíticos funcionais (Home, Aportes, Distribuição, Instituição e Capital Investido)
+        └── gold_metrics.py       # Orquestrador puro da Gold e persistência dos 10 snapshots
 ```
 
 ### Fluxo da Pipeline
 
 ```mermaid
 flowchart TD
-    A["Bronze: data/bronze/economias.csv"] --> B["run_silver_pipeline()"]
-    B --> C["tickers.py (Yahoo Finance + Cache Local)"]
-    C --> B
-    B --> D["Silver: data/silver/snapshots/YYYYMM_silver_snapshot.csv"]
-    D --> E["run_gold_pipeline()"]
-    E --> F["Gold: data/gold/YYYYMM/*.csv (10 datasets por partição)"]
-    E --> G["Arquivamento: data/bronze/history/YYYYMM_economias.csv"]
-    F --> H["Streamlit UI (Leitura direta dos CSVs Gold)"]
+    A["Bronze: data/bronze/economias.csv"] --> B["load_bronze_input()"]
+    B --> C["transform_silver()"]
+    C --> D["tickers.py (Yahoo Finance + Cache Local)"]
+    D --> C
+    C --> E["save_silver_snapshot()"]
+    E --> F["transform_gold()"]
+    F --> G["metrics_builders.py (Builders por domínio + Capital Investido)"]
+    G --> F
+    F --> H["save_gold_snapshots()"]
+    H --> I["Gold: data/gold/YYYYMM/*.csv (10 datasets por partição)"]
+    H --> J["archive_bronze_input()"]
+    I --> K["Streamlit UI (Leitura direta dos CSVs Gold)"]
 ```
 
 ## Visual da Aplicação ✨
@@ -109,7 +116,7 @@ A primeira área da Home mostra o total consolidado do mês, os atalhos para cad
 
 ### Evolução temporal em valores absolutos 📈
 
-Essa seção mostra a evolução do patrimônio em valores absolutos. O gráfico mensal acompanha a linha de cada instituição e o consolidado geral, enquanto o gráfico anual compara o último snapshot disponível de cada ano, evitando que um mesmo ano apareça com múltiplos registros.
+Essa seção mostra a evolução do patrimônio em valores absolutos. O gráfico mensal acompanha a linha de cada instituição e o consolidado geral (`ALL`), juntamente com a série tracejada de **`Capital Investido`** (escada de aportes: patrimônio de partida $V_0$ somado aos novos aportes acumulados). A distância vertical entre a curva de patrimônio e a de capital investido revela de forma direta o lucro/ganho patrimonial em reais. O gráfico anual compara o último snapshot disponível de cada ano, evitando que um mesmo ano apareça com múltiplos registros.
 
 > A opção de temporalidade controla a janela exibida nos gráficos de linha de evolução mensal da página atual. É possível alternar entre `YTD`, `6 meses`, `12 meses` e `24 meses`; essa escolha afeta os gráficos mensais de linha em valores absolutos e em variações percentuais, sem alterar os gráficos anuais, tabelas, cards ou distribuições.
 
@@ -118,6 +125,12 @@ Essa seção mostra a evolução do patrimônio em valores absolutos. O gráfico
 ### Evolução temporal em percentuais 📊
 
 A leitura percentual ajuda a comparar crescimento relativo entre instituições, mesmo quando os valores absolutos são bem diferentes. A visão mensal mostra a variação mês a mês; a anual consolida a variação por ano.
+
+No gráfico de barras anuais, o ano corrente em andamento é dinamicamente rotulado como **`YTD`** (Year-To-Date), refletindo a rentabilidade acumulada do início do ano até o mês de referência. Quando um novo ano se inicia (ex: 2027), a barra do ano anterior consolida-se em definitivo e o novo ano assume o YTD:
+
+- **Consolidado e Instituições (`ALL` e por instituição):** Para anos com fechamento anterior na base, a rentabilidade anual compara o fechamento atual com o fechamento do ano anterior, descontando todos os aportes do ano. No ano inicial do histórico (sem ano anterior), a base passa a ser o primeiro snapshot registrado naquele ano, descontando apenas os aportes ocorridos após essa primeira data.
+- **Ativos individuais (telas de instituição):** A variação anual/YTD mede estritamente a oscilação da **cota/preço unitário (`preco_atual`)** frente ao fechamento do ano anterior ou ao primeiro preço registrado no ano de entrada do ativo, evitando distorções causadas por compras adicionais de cotas.
+- **Proteção visual:** Entidades ou ativos com apenas uma data de apuração no histórico não recebem variação artificial (`NaN`) e são omitidos defensivamente no gráfico percentual. Quando não há histórico suficiente para nenhuma série, o componente exibe uma mensagem informativa centralizada sem eixos numéricos vazios.
 
 ![Variações percentuais](docs/images/04-variacoes-percentuais.png)
 
@@ -285,40 +298,66 @@ data/gold/YYYYMM/YYYYMM_gold_<nome_tabela>_snapshot.csv
 
 | Saída Gold | Uso no app |
 | --- | --- |
-| `home_linha` | Evolução mensal consolidada da carteira e por instituição. |
+| `home_linha` | Evolução mensal consolidada da carteira (`ALL`), por instituição e série de `Capital Investido`. |
 | `home_botoes` | Totais mais recentes usados nos botões da Home. |
-| `home_barras` | Evolução anual consolidada, usando um snapshot por ano. |
+| `home_barras` | Evolução anual consolidada com rotulagem dinâmica (anos consolidados vs YTD), deduzindo fluxos anuais. |
 | `pizza_tipo` | Distribuição por tipo de investimento. |
 | `pizza_expo` | Distribuição por exposição nacional/internacional. |
-| `instituicao_linha` | Evolução mensal por instituição e por ativo. |
-| `instituicao_label` | Tabela detalhada de posições da página de instituição. |
-| `instituicao_barras` | Evolução anual por instituição e ativo, usando um snapshot por ano. |
+| `instituicao_linha` | Evolução mensal por ativo individual, retorno ponderado da carteira (`ALL`) e `Capital Investido`. |
+| `instituicao_label` | Tabela detalhada de posições da página de instituição com retorno acumulado vs preço médio. |
+| `instituicao_barras` | Evolução anual por instituição e ativo, com rotulagem dinâmica (anos consolidados vs YTD). |
 | `aportes_linha` | Evolução mensal dos aportes por instituição e consolidado geral. |
 | `aportes_barras` | Evolução anual dos aportes por instituição e consolidado geral. |
 
-Além de agregar os valores, a Gold calcula variações percentuais usando o valor anterior dentro de cada grupo. Isso é usado nos gráficos de evolução mensal, evolução anual e nas tabelas de posição.
+Além de agregar os valores, a Gold calcula variações percentuais usando rentabilidade real descontando aportes (Opção A) no consolidado mensal e anual/YTD (diferenciando anos consolidados com fechamento anterior do ano inicial de histórico), oscilação de cota unitária para ativos individuais (mensal e anual/YTD) e retorno ponderado da carteira para o índice mensal da instituição.
 
 ## O Que Cada Parte Faz 🧩
 
 ### `pipelines/run_pipeline.py`
 
-É o orquestrador da pipeline.
+É o orquestrador mestre da pipeline estruturado no estilo "sumário do livro":
 
-Ele cria a sessão Spark, roda a Silver, recebe o caminho do snapshot Silver gerado e passa esse caminho para a Gold. No final, encerra a sessão Spark.
+```python
+df_bronze = load_bronze_input(input_path)
+df_silver = transform_silver(df_bronze)
+silver_snapshot_path = save_silver_snapshot(df_silver)
+gold_datasets = transform_gold(df_silver)
+gold_snapshot_paths = save_gold_snapshots(gold_datasets)
+bronze_history_path = archive_bronze_input(input_path)
+```
 
-Também centraliza a configuração dos logs, registra duração e etapa de falha e separa visualmente a execução de cada camada.
+Centraliza a inicialização e parada da sessão Spark, formata os logs e coleta métricas de execução e alertas em tempo de execução.
+
+### `pipelines/bronze/ingestion.py`
+
+Responsável pelo carregamento inicial e arquivamento dos dados brutos:
+- `load_bronze_input`: Corrige cabeçalhos legados do Google Forms/Excel in-place se necessário, lê o CSV via PySpark com suporte multilinha e adiciona `bronze_row_id`.
+- `archive_bronze_input`: Move o arquivo bruto processado para `data/bronze/history/{YYYYMM}_{nome}.csv` via `partition_handler`.
 
 ### `pipelines/silver/transformations.py`
 
-Implementa o fluxo da camada Silver descrito acima.
+Concentra as funções puras de transformação da Silver (`extract_and_validate_summary`, `normalize_silver_data`, `apply_asset_business_rules`, `enrich_with_prices`, `validate_silver_output`), o orquestrador puro `transform_silver` e a persistência `save_silver_snapshot`.
 
 ### `pipelines/silver/tickers.py`
 
-Cuida da busca e cache de preços usados pela Silver.
+Cuida da busca de preços no Yahoo Finance e da gestão do cache local particionado em `data/silver/tickers_cache`.
+
+### `pipelines/gold/metrics_builders.py`
+
+Centraliza os builders analíticos e regras matemáticas de negócio divididos por domínio:
+- `build_home_metrics`: Constrói `home_linha` (com rentabilidade Opção A e série `Capital Investido`), `home_botoes` e `home_barras`.
+- `build_contribution_metrics`: Constrói `aportes_linha` e `aportes_barras`.
+- `build_distribution_metrics`: Constrói `pizza_expo` e `pizza_tipo`.
+- `build_institution_metrics`: Constrói `instituicao_linha` (oscilação de cota de ativos, retorno ponderado de carteira e série `Capital Investido`), `instituicao_label` e `instituicao_barras`.
+- `get_cumulative_capital`: Calcula a escada de aportes ($V_0 + \sum A_k$).
+- `get_annual_variation_with_flow`: Calcula a rentabilidade anual/YTD de carteiras e instituições deduzindo fluxos (usando fechamento do ano anterior ou primeiro snapshot do ano inicial como base).
+- `get_annual_asset_variation`: Calcula a variação anual/YTD de ativos individuais pela oscilação do preço unitário (`preco_atual`).
 
 ### `pipelines/gold/gold_metrics.py`
 
-Implementa o fluxo da camada Gold descrito acima.
+Orquestrador analítico puro da camada Gold:
+- `transform_gold`: Executa as transformações analíticas e retorna o dicionário com os 10 DataFrames Gold.
+- `save_gold_snapshots`: Itera e grava os 10 snapshots particionados via `partition_handler`.
 
 ### `pipelines/shared/partition_handler.py`
 
@@ -400,7 +439,7 @@ As tabelas Gold variam conforme o gráfico, mas seguem uma lógica comum:
 | Família | Colunas comuns | Para que serve |
 | --- | --- | --- |
 | Linha | `data_apuracao`, `ano`, `mes`, `valor_total`, `variacao_percentual` | Evolução temporal. |
-| Barras | `data_apuracao`, `ano`, `valor_total`, `variacao_percentual` | Comparação anual. |
+| Barras | `data_apuracao`, `ano`, `rotulo_ano`, `valor_total`, `variacao_percentual` | Comparação anual (consolidados vs YTD). |
 | Pizza | `data_apuracao`, `tipo` ou `exposicao`, `valor_total` | Distribuições. |
 | Labels | `data_apuracao`, `instituicao_fin`, `nome`, `qtd`, `preco_medio`, `preco_atual`, `valor_total` | Tabelas detalhadas por instituição. |
 

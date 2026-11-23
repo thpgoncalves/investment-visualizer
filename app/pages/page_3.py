@@ -189,13 +189,12 @@ with st.container(border=True):
                 width='stretch',
             )
 
-        # avaliar como realmente ficaria essa parte aqui pra calculo de ano e ytd
         with abs_right_col:
             st.plotly_chart(
                 build_grouped_bar_chart(
                     df=df_home_barra_filtrado,
                     title="Evolução Anual",
-                    x_col='ano', 
+                    x_col='rotulo_ano', 
                     y_col='valor_total',
                     series_col='nome'
                 ),
@@ -227,13 +226,12 @@ with st.container(border=True):
                 width='stretch',
             )
 
-        # avaliar como realmente ficaria essa parte aqui pra calculo de ano e ytd
         with pct_right_col:
             st.plotly_chart(
                 build_grouped_bar_chart(
                     df=df_home_barra_filtrado,
                     title="Evolução Anual",
-                    x_col='ano', 
+                    x_col='rotulo_ano', 
                     y_col='variacao_percentual',
                     series_col='nome',
                     percentual=True

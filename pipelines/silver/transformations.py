@@ -1,17 +1,16 @@
 from __future__ import annotations
 
-
 import logging
+from pathlib import Path
 
 from pyspark.sql import functions as F
+from pyspark.sql.dataframe import DataFrame
 from pyspark.sql.window import Window
-import pandas as pd 
 
 from infra.spark_utils import normalize_ptbr_number
 from pipelines.shared.logging_utils import log_section_separator
 from pipelines.shared.partition_handler import handler_partitions
 from pipelines.silver.tickers import get_tickers_price, handler_tickers_cache
-
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +28,23 @@ INTERNATIONAL_TICKERS = [
 ]
 
 
-def _normalize_and_validate_summary_lines(df):
+def extract_and_validate_summary(df: DataFrame) -> DataFrame:
+    """
+    Desdobra o campo multilinha 'resumo' em registros individuais de ativos.
+    Descarta linhas vazias e valida se cada linha contém exatamente 5 campos
+    delimitados por pipe com tipo, nome, qtd e preco_medio não vazios.
+
+    Parâmetros:
+        df: DataFrame PySpark da camada Bronze com o campo 'resumo'.
+
+    Retorna:
+        DataFrame PySpark explodido com linhas validadas.
+
+    Raises:
+        ValueError: Se houver linhas com menos ou mais de 5 campos ou campos obrigatórios vazios.
+    """
+    logger.info("🥈 SILVER | Exploding and validating summary lines")
+
     df_exploded = (
         df.withColumn("resumo", F.regexp_replace(F.col("resumo"), r"\r\n|\r", "\n"))
         .withColumn("_resumo_lines", F.split(F.col("resumo"), "\n"))
@@ -112,14 +127,141 @@ def _normalize_and_validate_summary_lines(df):
     valid_count = df_validated.count()
     logger.info("🥉 BRONZE | Summary validation passed | valid_lines=%s", valid_count)
 
-    return df_validated.drop(
+    df_result = df_validated.drop(
         "_resumo_line_number",
         "_summary_field_count",
         "_missing_required_fields",
     )
+    return df_result
 
 
-def _enrich_with_ticker_prices(df, df_cache):
+def normalize_silver_data(df: DataFrame) -> DataFrame:
+    """
+    Extrai as colunas do resumo delimitado, aplica normalização numérica pt-BR
+    e deriva as referências temporais de apuração (ano, mes_num, mes).
+
+    Parâmetros:
+        df: DataFrame PySpark explodido com o campo 'resumo' validado.
+
+    Retorna:
+        DataFrame PySpark com colunas individuais e dados normalizados.
+    """
+    logger.info("🥈 SILVER | Splitting and normalizing summary fields")
+    parts = F.split(F.col("resumo"), r"\|")
+
+    df_split = (
+        df.withColumn("tipo", F.trim(parts.getItem(0)))
+        .withColumn("nome", F.trim(parts.getItem(1)))
+        .withColumn("qtd", F.trim(parts.getItem(2)))
+        .withColumn("preco_medio", F.trim(parts.getItem(3)))
+        .withColumn("preco_atual", F.trim(parts.getItem(4)))
+    )
+
+    df_normalized = (
+        df_split.withColumn("tipo", normalize_ptbr_number(F.col("tipo")))
+        .withColumn("nome", normalize_ptbr_number(F.col("nome")))
+        .withColumn("qtd", normalize_ptbr_number(F.col("qtd")))
+        .withColumn("preco_medio", normalize_ptbr_number(F.col("preco_medio")))
+        .withColumn("preco_atual", normalize_ptbr_number(F.col("preco_atual")))
+    )
+
+    month_mapping = F.create_map(
+        F.lit(1), F.lit("Jan"),
+        F.lit(2), F.lit("Fev"),
+        F.lit(3), F.lit("Mar"),
+        F.lit(4), F.lit("Abr"),
+        F.lit(5), F.lit("Mai"),
+        F.lit(6), F.lit("Jun"),
+        F.lit(7), F.lit("Jul"),
+        F.lit(8), F.lit("Ago"),
+        F.lit(9), F.lit("Set"),
+        F.lit(10), F.lit("Out"),
+        F.lit(11), F.lit("Nov"),
+        F.lit(12), F.lit("Dec"),
+    )
+
+    df_temporal = (
+        df_normalized
+        .withColumn("data_apuracao", F.to_date(F.col("data_apuracao"), "dd/MM/yyyy"))
+        .withColumn("ano", F.year(F.col("data_apuracao")))
+        .withColumn("mes_num", F.month(F.col("data_apuracao")))
+        .withColumn("mes", month_mapping[F.col("mes_num")])
+    )
+
+    df_result = df_temporal
+    return df_result
+
+
+def apply_asset_business_rules(df: DataFrame) -> DataFrame:
+    """
+    Aplica regras de negócio para classificação e padronização dos ativos:
+    converte fundos imobiliários para 'stock', define exposição nacional ou
+    internacional e projeta os tipos do esquema final da Silver.
+
+    Parâmetros:
+        df: DataFrame PySpark normalizado e enriquecido com datas.
+
+    Retorna:
+        DataFrame PySpark com tipagem canônica e atributos de negócio aplicados.
+    """
+    logger.info("🥈 SILVER | Applying asset business rules and typing")
+    df_classified = (
+        df.withColumn("tipo", F.lower(F.col("tipo")))
+        .withColumn(
+            "tipo",
+            F.when(
+                F.col("tipo").isin("fundo imobiliario", "fundo imobiliário"),
+                "stock",
+            ).otherwise(F.col("tipo")),
+        )
+        .withColumn("instituicao_fin", F.upper(F.col("instituicao_fin")))
+        .withColumn(
+            "nome",
+            F.when(F.col("tipo") == "stock", F.upper(F.col("nome"))).otherwise(F.lower(F.col("nome"))),
+        )
+        .withColumn(
+            "exposicao",
+            F.when(F.col("tipo") == "cripto", "internacional")
+            .when(F.col("nome").isin(INTERNATIONAL_TICKERS), "internacional")
+            .otherwise("nacional"),
+        )
+    )
+
+    df_schema = df_classified.select(
+        F.to_timestamp(F.col("timestamp"), "dd/MM/yyyy HH:mm:ss").alias("timestamp"),
+        F.col("data_apuracao").cast("date").alias("data_apuracao"),
+        F.col("bronze_row_id").cast("int").alias("bronze_row_id"),
+        F.col("ano").cast("int").alias("ano"),
+        F.col("mes_num").cast("int").alias("mes_num"),
+        F.col("mes").cast("string").alias("mes"),
+        F.col("instituicao_fin").cast("string").alias("instituicao_fin"),
+        F.col("resumo").cast("string").alias("resumo"),
+        F.col("tipo").cast("string").alias("tipo"),
+        F.col("nome").cast("string").alias("nome"),
+        F.col("qtd").cast("double").alias("qtd"),
+        F.col("preco_medio").cast("double").alias("preco_medio"),
+        F.col("preco_atual").cast("double").alias("preco_atual"),
+        F.col("aporte").cast("double").alias("aporte"),
+        F.col("exposicao").cast("string").alias("exposicao"),
+    )
+
+    df_result = df_schema
+    return df_result
+
+
+def _enrich_with_ticker_prices(df: DataFrame, df_cache: DataFrame) -> DataFrame:
+    """
+    Mescla as cotações do cache com o DataFrame Silver.
+    Aplica join exato por data de apuração e fallback para o preço mais recente válido,
+    calculando o 'valor_total' da posição ao final.
+
+    Parâmetros:
+        df: DataFrame PySpark de ativos tipado.
+        df_cache: DataFrame PySpark contendo o cache histórico de cotações.
+
+    Retorna:
+        DataFrame PySpark com cotações mescladas e 'valor_total' calculado.
+    """
     df_enriched = (
         df.alias("a")
         .join(
@@ -188,7 +330,7 @@ def _enrich_with_ticker_prices(df, df_cache):
             .drop("_fallback_close")
         )
 
-    return (
+    df_result = (
         df_enriched
         .withColumn("valor_total", F.round(F.col("preco_atual") * F.col("qtd"), 2))
         .select(
@@ -210,9 +352,48 @@ def _enrich_with_ticker_prices(df, df_cache):
             F.col("exposicao"),
         )
     )
+    return df_result
 
 
-def _validate_silver_output(df) -> None:
+def enrich_with_prices(df: DataFrame) -> DataFrame:
+    """
+    Busca cotações faltantes no Yahoo Finance, atualiza o cache local
+    e integra os preços às posições acionárias da camada Silver.
+
+    Parâmetros:
+        df: DataFrame PySpark de ativos.
+
+    Retorna:
+        DataFrame PySpark enriquecido com preços de mercado atualizados.
+    """
+    log_section_separator(logger)
+    logger.info("📈 YAHOO | Fetching ticker prices")
+    df_price = get_tickers_price(df)
+
+    log_section_separator(logger)
+    logger.info("💾 CACHE | Updating ticker prices")
+    df_cache = handler_tickers_cache(df_price)
+
+    log_section_separator(logger)
+    logger.info("🥈 SILVER | Merging ticker prices")
+    df_enriched = _enrich_with_ticker_prices(df, df_cache)
+
+    df_result = df_enriched
+    return df_result
+
+
+def validate_silver_output(df: DataFrame) -> None:
+    """
+    Executa a auditoria de integridade do dataset Silver final.
+    Verifica se o volume de dados é positivo e assegura que nenhuma posição
+    possua 'preco_atual' ou 'valor_total' nulo.
+
+    Parâmetros:
+        df: DataFrame PySpark final da camada Silver a ser auditado.
+
+    Raises:
+        ValueError: Se o dataset estiver vazio ou com preços/totais ausentes.
+    """
     stats = (
         df.agg(
             F.count(F.lit(1)).alias("rows"),
@@ -274,170 +455,43 @@ def _validate_silver_output(df) -> None:
     logger.info("🥈 SILVER | Validation passed")
 
 
-def run_silver_pipeline(
-    spark,
-    *,
-    input_path: str,
-) -> str:
-    logger.info("🥈 SILVER | Pipeline started")
+def transform_silver(df_bronze: DataFrame) -> DataFrame:
+    """
+    Orquestra a transformação analítica pura da camada Silver:
+    desdobramento de resumo, normalização pt-BR, regras de ativo, enriquecimento
+    de preços de mercado e validação de qualidade dos dados.
 
-    try:
-        df_check = pd.read_csv(input_path, nrows=0)
-        if "instituicao_fin" not in df_check.columns:
-            logger.warning("⚠️ Colunas do Excel detectadas no arquivo original. Corrigindo cabeçalhos in-place...")
-            
-            column_mapping = {
-                "Carimbo de data/hora": "timestamp",
-                "Data Apuração:": "data_apuracao",
-                "Instituição Financeira:": "instituicao_fin",
-                "Resumo Investimentos:": "resumo",
-                "Aporte:": "aporte"
-            }
-            
-            # Carrega o CSV inteiro pelo Pandas, renomeia e salva por cima dele mesmo
-            df_orig = pd.read_csv(input_path)
-            df_orig = df_orig.rename(columns=column_mapping)
-            df_orig.to_csv(input_path, index=False, encoding="utf-8")
-            logger.info("✅ Arquivo original '%s' atualizado com sucesso!", input_path)
-            
-    except Exception as e:
-        logger.error("❌ Falha crítica ao tentar corrigir o arquivo original: %s", e)
+    Parâmetros:
+        df_bronze: DataFrame PySpark de entrada da camada Bronze.
 
-    log_section_separator(logger)
-    logger.info("🥉 BRONZE | Reading CSV | path=%s", input_path)
-    df = spark.read.csv(
-        path=input_path,
-        sep=",",
-        header=True,
-        multiLine=True,
-    )
-
-    bronze_stats = (
-        df.agg(
-            F.count(F.lit(1)).alias("rows"),
-            F.countDistinct("instituicao_fin").alias("institutions"),
-        )
-        .first()
-    )
-    logger.info(
-        "🥉 BRONZE | Input summary | rows=%s | institutions=%s | columns=%s",
-        bronze_stats["rows"],
-        bronze_stats["institutions"],
-        df.columns,
-    )
-    df = df.withColumn("bronze_row_id", F.monotonically_increasing_id())
-
-    logger.info("🥉 BRONZE | Normalizing and validating summary lines")
-    df = _normalize_and_validate_summary_lines(df)
-
+    Retorna:
+        DataFrame PySpark transformado e validado, pronto para persistência.
+    """
     log_section_separator(logger)
     logger.info("🥈 SILVER | Transformations started")
-    logger.info("🥈 SILVER | Splitting summary fields")
-    parts = F.split(F.col("resumo"), r"\|")
 
-    df = (
-        df.withColumn("tipo", F.trim(parts.getItem(0)))
-        .withColumn("nome", F.trim(parts.getItem(1)))
-        .withColumn("qtd", F.trim(parts.getItem(2)))
-        .withColumn("preco_medio", F.trim(parts.getItem(3)))
-        .withColumn("preco_atual", F.trim(parts.getItem(4)))
-    )
+    df_summary = extract_and_validate_summary(df_bronze)
+    df_normalized = normalize_silver_data(df_summary)
+    df_rules = apply_asset_business_rules(df_normalized)
+    df_enriched = enrich_with_prices(df_rules)
+    validate_silver_output(df_enriched)
 
-    logger.info("🥈 SILVER | Normalizing pt-BR values")
-    df = (
-        df.withColumn("tipo", normalize_ptbr_number(F.col("tipo")))
-        .withColumn("nome", normalize_ptbr_number(F.col("nome")))
-        .withColumn("qtd", normalize_ptbr_number(F.col("qtd")))
-        .withColumn("preco_medio", normalize_ptbr_number(F.col("preco_medio")))
-        .withColumn("preco_atual", normalize_ptbr_number(F.col("preco_atual")))
-    )
+    df_result = df_enriched
+    return df_result
 
-    logger.info("🥈 SILVER | Creating date reference columns")
-    month_mapping = F.create_map(
-        F.lit(1), F.lit("Jan"),
-        F.lit(2), F.lit("Fev"),
-        F.lit(3), F.lit("Mar"),
-        F.lit(4), F.lit("Abr"),
-        F.lit(5), F.lit("Mai"),
-        F.lit(6), F.lit("Jun"),
-        F.lit(7), F.lit("Jul"),
-        F.lit(8), F.lit("Ago"),
-        F.lit(9), F.lit("Set"),
-        F.lit(10), F.lit("Out"),
-        F.lit(11), F.lit("Nov"),
-        F.lit(12), F.lit("Dec"),
-    )
 
-    df = (
-        df.withColumn("data_apuracao", F.to_date(F.col("data_apuracao"), "dd/MM/yyyy"))
-        .withColumn("ano", F.year(F.col("data_apuracao")))
-        .withColumn("mes_num", F.month(F.col("data_apuracao")))
-        .withColumn("mes", month_mapping[F.col("mes_num")])
-    )
+def save_silver_snapshot(df_silver: DataFrame) -> str:
+    """
+    Persiste o snapshot analítico da camada Silver particionado por período temporal.
 
-    logger.info("🥈 SILVER | Applying business rules")
-    df = (
-        df.withColumn("tipo", F.lower(F.col("tipo")))
-        .withColumn(
-            "tipo",
-            F.when(
-                F.col("tipo").isin("fundo imobiliario", "fundo imobiliário"),
-                "stock",
-            ).otherwise(F.col("tipo")),
-        )
-        .withColumn("instituicao_fin", F.upper(F.col("instituicao_fin")))
-        .withColumn(
-            "nome",
-            F.when(F.col("tipo") == "stock", F.upper(F.col("nome"))).otherwise(F.lower(F.col("nome"))),
-        )
-        .withColumn(
-            "exposicao",
-            F.when(F.col("tipo") == "cripto", "internacional")
-            .when(F.col("nome").isin(INTERNATIONAL_TICKERS), "internacional")
-            .otherwise("nacional"),
-        )
-    )
+    Parâmetros:
+        df_silver: DataFrame PySpark processado e validado.
 
-    logger.info("🥈 SILVER | Casting final schema")
-    df = df.select(
-        F.to_timestamp(F.col("timestamp"), "dd/MM/yyyy HH:mm:ss").alias("timestamp"),
-        F.col("data_apuracao").cast("date").alias("data_apuracao"),
-        F.col("bronze_row_id").cast("int").alias("bronze_row_id"),
-        F.col("ano").cast("int").alias("ano"),
-        F.col("mes_num").cast("int").alias("mes_num"),
-        F.col("mes").cast("string").alias("mes"),
-        F.col("instituicao_fin").cast("string").alias("instituicao_fin"),
-        F.col("resumo").cast("string").alias("resumo"),
-        F.col("tipo").cast("string").alias("tipo"),
-        F.col("nome").cast("string").alias("nome"),
-        F.col("qtd").cast("double").alias("qtd"),
-        F.col("preco_medio").cast("double").alias("preco_medio"),
-        F.col("preco_atual").cast("double").alias("preco_atual"),
-        F.col("aporte").cast("double").alias("aporte"),
-        F.col("exposicao").cast("string").alias("exposicao"),
-    )
-
-    log_section_separator(logger)
-    logger.info("📈 YAHOO | Fetching ticker prices")
-    df_price = get_tickers_price(df)
-
-    log_section_separator(logger)
-    logger.info("💾 CACHE | Updating ticker prices")
-    df_cache = handler_tickers_cache(df_price)
-
-    log_section_separator(logger)
-    logger.info("🥈 SILVER | Merging ticker prices")
-    df = _enrich_with_ticker_prices(df, df_cache)
-
-    log_section_separator(logger)
-    logger.info("🥈 SILVER | Validating final dataset")
-    _validate_silver_output(df)
-
+    Retorna:
+        Caminho do arquivo CSV de snapshot gerado em data/silver/snapshots/.
+    """
     log_section_separator(logger)
     logger.info("🥈 SILVER | Writing snapshot")
-    silver_snapshot_path = handler_partitions(df, "silver")
-    logger.info("🥈 SILVER | Snapshot ready | path=%s", silver_snapshot_path)
-
-    log_section_separator(logger)
-    logger.info("🥈 SILVER | Pipeline finished")
-    return silver_snapshot_path
+    saved_path = handler_partitions(df_silver, "silver")
+    logger.info("🥈 SILVER | Snapshot ready | path=%s", saved_path)
+    return saved_path
